@@ -1,0 +1,81 @@
+name: Deploy to Google Cloud
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+
+jobs:
+  # Deploy web app to Cloud Run
+  deploy-web:
+    name: Deploy Web App
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy evento-web \
+            --source apps/web \
+            --project $PROJECT_ID \
+            --region $REGION \
+            --allow-unauthenticated
+
+  # Deploy API service to Cloud Run
+  deploy-api:
+    name: Deploy API Service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy evento-api \
+            --source apps/api-service \
+            --project $PROJECT_ID \
+            --region $REGION \
+            --allow-unauthenticated
+
+  # Deploy agent service to Vertex AI Agent Engine
+  deploy-agent:
+    name: Deploy Agent Service
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Install ADK
+        working-directory: apps/agent-service
+        run: uv sync
+
+      - name: Deploy to Agent Engine
+        working-directory: apps/agent-service
+        run: |
+          uv run adk deploy agent_engine \
+            --project $PROJECT_ID \
+            --region $REGION \
+            --display_name "Evento Agent" \
+            .
