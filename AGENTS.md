@@ -2,7 +2,7 @@
 
 > **Hackathon:** [Gemini Live Agent Challenge](https://geminiliveagentchallenge.devpost.com/)
 > **Category:** Creative Storyteller ✍️ – Multimodal Storytelling with Interleaved Output
-> **Architecture:** Hybrid Monorepo (TS API Service + Python Multi-Agent Service)
+> **Architecture:** Monorepo — React frontend + Python FastAPI/ADK agent service
 > **Goal:** AI-powered event content creation app that weaves text, images, audio, and video in a single cohesive output stream.
 
 ## 1. Hackathon Context
@@ -22,92 +22,109 @@
 
 * **Monorepo:** `pnpm` workspaces + `Turborepo` task pipeline.
 * **Frontend:** React (Vite), TanStack Query, Shadcn UI.
-* **Orchestrator (TS):** Fastify + **BetterAuth** (AuthN/AuthZ) + **Sharp** (Image Preprocessing).
-* **Agent Service (Python):** Google ADK + Gemini models (Pro / Flash).
-* **Storage/DB:** Firestore (Agent Memory/Tasks), GCS (Multimodal Assets).
+* **Agent Service (Python):** FastAPI + Google ADK + Gemini models. Handles AuthN (Firebase), WebSocket streaming, session persistence (Vertex AI Agent Engine), and GCS media storage.
+* **Storage/DB:** Firestore (session index), GCS (multimodal assets).
 
-## 3. Multi-Agent Architecture (Hybrid Workflow Pattern)
-
-Uses ADK's **Workflow Agents** for simultaneous execution with a gather step:
+## 3. Multi-Agent Architecture
 
 ```
-SequentialAgent("ContentPipeline")
-├── TrendAnalyst             # Step 1: Grounded research (Google Search)
-├── ParallelAgent("ContentCreators")
-│   ├── CreativeWriter       # Parallel: Text/copy generation
-│   └── VisualDesigner       # Parallel: Image generation (Imagen)
-└── Orchestrator             # Step 3: Combine → interleaved output stream
+Orchestrator (LlmAgent, root)
+├── EventInfoGatherer     (LlmAgent) — multi-turn info collection, saves to session state
+└── ContentGenerationManager (LlmAgent) — decides pipeline, drives content creation
+    ├── AgentTool: ResearchAndPlanner  (LlmAgent + BuiltInPlanner + google_search)
+    └── AgentTool: ContentGenerator   (LlmAgent)
+        ├── AgentTool: MultimodalContentCreator  (gemini-2.0-flash-preview-image-generation)
+        └── AgentTool: VideoGenerator            (Veo via FunctionTool → GCS)
 ```
 
 | Agent | Type | Role |
 |-------|------|------|
-| `ContentPipeline` | SequentialAgent | Top-level workflow: research → create → assemble |
-| `TrendAnalyst` | LlmAgent | Google Search grounded research, writes trend data to shared state |
-| `ContentCreators` | ParallelAgent | Fan-out: runs writer + designer simultaneously |
-| `CreativeWriter` | LlmAgent | Long-form email, social copy, brand voice alignment |
-| `VisualDesigner` | LlmAgent | Imagen tool calls, poster layout, image-to-image editing |
-| `Orchestrator` | LlmAgent | Gathers all sub-agent outputs → single interleaved mixed-media stream |
+| `Orchestrator` | LlmAgent | Root agent — greets users, routes to sub-agents |
+| `EventInfoGatherer` | LlmAgent | Multi-turn Q&A, writes `event_info` to session state |
+| `ContentGenerationManager` | LlmAgent | Decides research→generate or generate-only path |
+| `ResearchAndPlanner` | LlmAgent + BuiltInPlanner | Google Search grounding + content plan |
+| `ContentGenerator` | LlmAgent | Fans out to content tools simultaneously |
+| `MultimodalContentCreator` | LlmAgent | Interleaved text + images (social posts, emails, posters) |
+| `VideoGenerator` | LlmAgent + FunctionTool | Short video teasers via Veo API → GCS |
 
-**Key ADK patterns used:**
-- `SequentialAgent` for pipeline orchestration (research → create → assemble)
-- `ParallelAgent` for concurrent content generation (fan-out)
-- `output_key` for passing results via shared session state
-- Google Search grounding available to **all** agents
+**Key ADK patterns:**
+- LLM-driven delegation via `sub_agents` (Orchestrator → EventInfoGatherer / ContentGenerationManager)
+- `AgentTool` for fan-out content generation (ContentGenerator calls all tools simultaneously)
+- `BuiltInPlanner` for multi-step think-then-act in ResearchAndPlanner
+- `output_key` to pass `research_and_plan` between agents via session state
+- `ToolContext` for incremental state writes in `save_event_info`
+
+**Shared state keys:**
+
+| Key | Written by | Read by |
+|-----|-----------|---------|
+| `event_info` | `EventInfoGatherer` | All downstream agents |
+| `user_instructions` | `EventInfoGatherer` | All downstream agents |
+| `research_and_plan` | `ResearchAndPlanner` | `ContentGenerator` → content tools |
 
 ## 4. Directory Structure
 
 ```text
 /root
 ├── apps/
-│   ├── web/                        # React + Vite + TanStack Query
-│   ├── api-service/                # Fastify + BetterAuth + Sharp
-│   │   └── src/
-│   │       ├── auth/               # BetterAuth configuration
-│   │       ├── routes/             # API route handlers
-│   │       └── processing/         # Sharp image optimization
-│   └── agent-service/              # Python ADK
-│       ├── agents/
-│       │   ├── orchestrator.py     # Combines outputs → interleaved stream
-│       │   ├── creative_writer.py  # CreativeWriter sub-agent
-│       │   ├── visual_designer.py  # VisualDesigner sub-agent
-│       │   ├── trend_analyst.py    # TrendAnalyst sub-agent
-│       │   └── pipeline.py         # SequentialAgent + ParallelAgent wiring
-│       ├── tools/                  # Shared Tools (GCS, Search, Imagen)
-│       ├── main.py                 # ADK entry point
-│       ├── package.json            # Turborepo integration
-│       └── pyproject.toml          # uv project config
-├── packages/                       # Shared libs (types, utils)
-├── .agents/skills/                 # Coding Agent Skills
-├── .github/workflows/              # GitHub Actions CI/CD (IaC bonus)
-├── docs/                           # Project docs (git-ignored checklists)
+│   ├── web/                         # React + Vite + TanStack Query
+│   └── agent_service/               # Python FastAPI + ADK agent service
+│       ├── app/                     # ADK-discoverable package (adk web)
+│       │   ├── __init__.py
+│       │   ├── agent.py             # root_agent = orchestrator; loads .env
+│       │   ├── .env                 # env vars (inside package per ADK docs)
+│       │   ├── agents/
+│       │   │   ├── orchestrator.py
+│       │   │   ├── event_info_gatherer.py
+│       │   │   ├── content_generation_manager.py
+│       │   │   ├── research_and_planner.py
+│       │   │   ├── content_generator.py
+│       │   │   ├── multimodal_content_creator.py
+│       │   │   ├── video_generator.py
+│       │   │   └── models.py        # ContentToolResult Pydantic model
+│       │   └── tools/
+│       │       └── search_tool.py
+│       ├── main.py                  # FastAPI app (Phase 2)
+│       ├── api/                     # FastAPI routes (Phase 2)
+│       ├── services/                # GCS, Firestore, session services (Phase 2+)
+│       ├── package.json             # Turborepo integration
+│       └── pyproject.toml           # uv project config
+├── packages/                        # Shared libs (types, utils)
+├── .agents/skills/                  # Coding Agent Skills
+├── .github/workflows/               # GitHub Actions CI/CD
+├── docs/
 ├── pnpm-workspace.yaml
 ├── turbo.json
-├── tsconfig.base.json
-└── AGENTS.md                       # This file
+└── AGENTS.md
 ```
 
 ## 5. Rules for Coding Agents
 
-* **Auth Enforcement:** All requests to `agent-service` must include a valid session token verified by `api-service`.
 * **ADK Tools:** Use Google-style docstrings. Each tool must have clear description, input and output types.
-* **Image Handling:** Raw images are resized/optimized by **Sharp** in `api-service` before sending to `agent-service` (minimizes token costs).
-* **Interleaved Output:** The `Orchestrator` is responsible for combining sub-agent results into a single mixed-media response stream. Individual sub-agents return their specialized output (text, images, etc.), and the orchestrator weaves them into one cohesive interleaved output for the user.
-* **Error Handling:** All agents must use `try/except` blocks and return graceful error messages. No unhandled exceptions.
-* **Grounding:** Google Search tool should be available to **all agents** for grounding their outputs in real-world data. `TrendAnalyst` is the primary user, but `CreativeWriter` and `VisualDesigner` should also ground content when relevant.
-* **State Keys:** Use namespaced keys (e.g., `writer:draft`, `designer:poster_url`) to avoid collisions in shared state.
+* **Auth:** Firebase ID token verified in FastAPI middleware. `adk web` has no auth (local dev only).
+* **Image Handling:** User-uploaded images resized to ≤1024px wide before passing to agents (Pillow in `api/media.py`). Only resized version sent to agents to minimise token costs.
+* **Interleaved Output:** `MultimodalContentCreator` produces interleaved text+images in one turn. `ContentGenerator` synthesises all tool results into a cohesive final message.
+* **Error Handling:** All agents and tools must use `try/except` and return graceful error messages. No unhandled exceptions.
+* **Grounding:** `ResearchAndPlanner` uses `google_search` via `BuiltInPlanner`. Other agents can also use it when relevant.
+* **State Keys:** Use the defined keys only (`event_info`, `user_instructions`, `research_and_plan`). No ad-hoc state writes.
+* **ContentToolResult schema:** All content AgentTools return `{"status", "data", "metadata"}` so `ContentGenerator` can compose a cohesive summary.
+* **Local dev:**
+    ```bash
+    cd apps/agent_service
+    adk web        # → http://localhost:8000, select "app"
+    adk run app    # terminal chat (no UI)
+    ```
 * **Commits:** Use conventional commits (`feat:`, `fix:`, `chore:`, `docs:`).
-* **Extending Capabilities:** Agents should use the `find-skills` capability (located in `~/.agents/skills/find-skills`) or the `npx skills` CLI to discover and install additional best practices, tools, or workflows as needed for the task at hand.
-    - `npx skills find [query]` - Search for new skills.
-    - `npx skills add <owner/repo@skill>` - Install a skill.
-* **MCP Servers:** Agents have access to specialized MCP servers. Use them proactively:
-    - **`context7`**: Primary tool for research. Use `resolve-library-id` followed by `query-docs` for any framework or library questions.
-    - **`adk-docs-mcp`**: Use to fetch the latest ADK documentation if local context is insufficient.
-    - **`cloudrun`**: Use for managing and monitoring Cloud Run services.
-    - **`StitchMCP`**: Use for UI design and screen generation if needed.
+* **Extending Capabilities:** Use `npx skills find [query]` or `npx skills add <owner/repo@skill>` to discover and install skills.
+* **MCP Servers:** Use proactively:
+    - **`context7`**: Library/framework docs.
+    - **`adk-docs-mcp`**: Latest ADK documentation.
+    - **`cloudrun`**: Cloud Run service management.
+    - **`StitchMCP`**: UI design and screen generation.
 
 ## 6. Deployment Strategy
 
-* **Compute:** Deploy `api-service` and `web` to **Cloud Run**.
-* **Agent:** Deploy `agent-service` to **Cloud Run** (with ADK API server) or **Vertex AI Agent Engine**.
-* **Security:** Use **IAM Service Account impersonation** for TS backend → Python Agent communication.
-* **IaC (Bonus):** GitHub Actions workflows in `.github/workflows/` for automated Cloud deployment.
+* **Compute:** Deploy `agent_service` and `web` to **Cloud Run**.
+* **Sessions:** Vertex AI Agent Engine via `VertexAiSessionService` (`SESSION_SERVICE=vertexai`).
+* **Security:** Firebase Auth for user AuthN; Cloud Run service account IAM for GCP resource access.
+* **IaC (Bonus):** GitHub Actions workflows in `.github/workflows/`.

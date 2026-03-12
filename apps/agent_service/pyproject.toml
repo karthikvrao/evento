@@ -1,0 +1,15 @@
+[project]
+name = "evento-agent-svc"
+version = "0.1.0"
+description = "Multi-agent event content creation service using Google ADK"
+requires-python = ">=3.14"
+dependencies = [
+    "google-adk>=0.6.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "pydantic-settings>=2.4.0",
+    "firebase-admin>=6.5.0",
+    "python-dotenv>=1.0.1",
+    "websockets>=13.0",
+]
+
