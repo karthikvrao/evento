@@ -10,9 +10,10 @@ once enough info is collected or the user asks to proceed.
 
 from google.adk.agents import LlmAgent
 from google.adk.tools import ToolContext
+from ..services import firestore_service
 
 
-def save_event_info(
+async def save_event_info(
     tool_context: ToolContext,
     event_name: str = "",
     event_type: str = "",
@@ -71,7 +72,24 @@ def save_event_info(
         if user_instructions:
             saved_fields.append("user_instructions")
 
-        return {"status": "saved", "fields_updated": saved_fields}
+        # ── Database Persistence ──
+        event_id = tool_context.state.get("event_id")
+        
+        event_data = tool_context.state["event_info"].copy()
+        if "user_instructions" in tool_context.state:
+            event_data["user_instructions"] = tool_context.state["user_instructions"]
+
+        if event_id:
+            # Update existing event draft created during /chat/init
+            await firestore_service.update_event(event_id, event_data)
+        else:
+            return {"status": "error", "error": "No event_id found in session state"}
+
+        return {
+            "status": "saved", 
+            "fields_updated": saved_fields, 
+            "event_id": event_id
+        }
     except Exception as exc:
         return {"status": "error", "error": str(exc)}
 

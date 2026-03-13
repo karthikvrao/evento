@@ -5,6 +5,7 @@
   "description": "AI-powered event content creation app – Gemini Live Agent Challenge",
   "scripts": {
     "dev": "turbo dev",
+    "start": "turbo start",
     "build": "turbo build",
     "lint": "turbo lint",
     "typecheck": "turbo typecheck",
@@ -17,9 +18,6 @@
     "typescript": "^5.8.2"
   },
   "packageManager": "pnpm@10.6.1",
-  "pnpm": {
-    "onlyBuiltDependencies": ["sharp"]
-  },
   "engines": {
     "node": ">=20"
   }

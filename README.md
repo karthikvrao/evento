@@ -18,7 +18,12 @@ Orchestrator (LlmAgent, root)
         └── VideoGenerator           → Veo 5s 1080p teaser → GCS
 ```
 
-| Layer | Tech |
+## Technical Highlights
+
+- **Scalable Multimodal Handling**: Uses GCS Signed URLs and a custom `StorageService` for direct-to-cloud media uploads. This bypasses the overhead of Base64 encoding over WebSockets, ensuring performance for high-resolution images and Veo videos.
+- **Optimized Frontend UX**: Agents return directly renderable media URLs (GCS or local) within their JSON response. This enables the React frontend to display generated content instantly without secondary "fetch artifact" round-trips.
+- **Lean Session State**: Leverages ADK `after_model_callback` to intercept and process generated images. Media is uploaded and replaced with URLs in the final payload, keeping the persistent session state clean and avoiding state bloat.
+- **Modern Auth Architecture**: Utilizes Firebase SDK natively on the frontend for identity management (Sign-up/Login/Google Auth), with a lean FastAPI dependency for ID token verification on the backend.
 |-------|------|
 | Frontend | React + Vite, TanStack Query, Shadcn UI |
 | Agent Service | FastAPI + Python ADK, Gemini models, Firebase Auth, WebSocket |

@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "uv run adk web",
+    "start": "uv run uvicorn app.main:app --reload --port 8000",
     "build": "uv sync",
     "typecheck": "uv run pyright .",
     "lint": "uv run ruff check ."
