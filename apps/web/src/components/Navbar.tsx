@@ -7,13 +7,13 @@ import {
   Search, 
   Settings, 
   LogOut, 
-  User as UserIcon,
   ChevronDown,
   Bell
 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -86,21 +86,14 @@ export const Navbar: React.FC<NavbarProps> = ({ eventName, showSearch = true }) 
               <ChevronDown className="h-4 w-4 text-muted-foreground" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56 mt-1 border-border/50 bg-card/95 backdrop-blur-md">
-              <DropdownMenuLabel className="font-normal">
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-bold leading-none">{user?.displayName || "Profile"}</p>
-                  <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="cursor-pointer focus:bg-primary/10 focus:text-primary transition-colors" onClick={() => navigate('/profile')}>
-                <UserIcon className="mr-2 h-4 w-4" />
-                <span>Profile Settings</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="cursor-pointer focus:bg-primary/10 transition-colors">
-                <Settings className="mr-2 h-4 w-4" />
-                <span>Preferences</span>
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-bold leading-none">{user?.displayName || "Profile"}</p>
+                    <p className="text-xs leading-none text-muted-foreground">{user?.email}</p>
+                  </div>
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive transition-colors" onClick={handleSignOut}>
                 <LogOut className="mr-2 h-4 w-4" />

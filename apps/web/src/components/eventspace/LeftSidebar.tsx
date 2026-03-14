@@ -80,7 +80,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </h2>
             )}
             <Tooltip>
-              <TooltipTrigger>
+              <TooltipTrigger asChild>
                 <Button 
                   variant="ghost" 
                   className={cn(
@@ -114,7 +114,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 const isActive = event.id === activeEventId;
                 return (
                   <Tooltip key={event.id}>
-                    <TooltipTrigger>
+                    <TooltipTrigger asChild>
                       <Button 
                         variant="ghost" 
                         className={cn(
@@ -153,7 +153,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         {/* New Event Button at bottom */}
         <div className="p-4 border-t border-border/40 bg-background/50">
           <Tooltip>
-            <TooltipTrigger className="w-full flex justify-center">
+            <TooltipTrigger asChild className="w-full flex justify-center">
               <Button 
                 className={cn(
                   "bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 transition-all duration-300 group",

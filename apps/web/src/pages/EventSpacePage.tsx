@@ -7,6 +7,8 @@ import { LeftSidebar } from '../components/eventspace/LeftSidebar';
 import { AiAssistantPanel } from '../components/eventspace/AiAssistantPanel';
 import { ContentCard } from '../components/eventspace/ContentCard';
 import { ChatMessage } from '../components/eventspace/ChatMessage';
+import { MediaViewerModal } from '../components/modals/MediaViewerModal';
+import type { MediaItem } from '../components/modals/MediaViewerModal';
 
 // Mock data
 const mockEvents = [
@@ -95,9 +97,34 @@ export default function EventSpacePage() {
 
   const [selectedContentIds, setSelectedContentIds] = useState<string[]>([]);
   const [isResizing, setIsResizing] = useState(false);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [activeViewerIndex, setActiveViewerIndex] = useState(0);
   
   const isDraggingLeft = useRef(false);
   const isDraggingRight = useRef(false);
+
+  // Extract all media items for the viewer
+  const mediaItems: MediaItem[] = mockContent
+    .filter(item => item.type === 'video' || item.type === 'poster' || (item.type === 'email' && (item as any).emailImage))
+    .map((item, idx) => ({
+      id: item.id,
+      title: item.title,
+      type: (item.type === 'email' ? 'image' : item.type) as any,
+      image: item.type === 'poster' ? (item as any).image : (item as any).image || (item as any).emailImage,
+      timestamp: item.timestamp,
+      variant: item.type === 'poster' ? (idx % 3 + 1).toString() : undefined,
+      resolution: item.type === 'poster' ? '1024x1024' : item.type === 'video' ? '1920x1080' : '1200x400',
+      isFavorite: item.isFavorite,
+      isSelected: selectedContentIds.includes(item.id)
+    }));
+
+  const openMediaViewer = (itemId: string) => {
+    const index = mediaItems.findIndex(item => item.id === itemId);
+    if (index !== -1) {
+      setActiveViewerIndex(index);
+      setIsViewerOpen(true);
+    }
+  };
 
   const activeEvent = mockEvents.find(e => e.id === id) || mockEvents[0];
 
@@ -107,6 +134,12 @@ export default function EventSpacePage() {
         ? prev.filter(id => id !== contentId) 
         : [...prev, contentId]
     );
+  };
+
+  const toggleFavorite = (contentId: string) => {
+    console.log("Toggle favorite:", contentId);
+    // In a real app we'd update DB/mockContent state
+    // For now we just log it as mockContent is a constant
   };
 
   const handleMediaClick = (contentId: string) => {
@@ -250,10 +283,11 @@ export default function EventSpacePage() {
                             isFavorite={item.isFavorite}
                             isActive={highlightedId === item.id}
                             isSelected={selectedContentIds.includes(item.id)}
-                            onFavorite={() => console.log("Toggle favorite:", item.id)}
+                            onFavorite={() => toggleFavorite(item.id)}
                             onCopy={() => console.log("Copy content:", item.id)}
                             onDownload={() => console.log("Download asset:", item.id)}
                             onSelect={() => toggleSelect(item.id)}
+                            onOpenViewer={() => openMediaViewer(item.id)}
                           />
                         ))}
                       </div>
@@ -304,6 +338,18 @@ export default function EventSpacePage() {
           </div>
         </AiAssistantPanel>
       </div>
+
+      <MediaViewerModal 
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        items={mediaItems}
+        currentIndex={activeViewerIndex}
+        onIndexChange={setActiveViewerIndex}
+        onFavorite={toggleFavorite}
+        onSelect={toggleSelect}
+        onCopy={(id) => console.log("Modal Copied:", id)}
+        onDownload={(id) => console.log("Modal Downloaded:", id)}
+      />
 
       <CreateEventModal 
         isOpen={isModalOpen} 

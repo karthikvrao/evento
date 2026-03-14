@@ -38,7 +38,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({ activeFilter, onFilterChan
           
           return (
             <Tooltip key={filter.id}>
-              <TooltipTrigger>
+              <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"

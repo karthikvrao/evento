@@ -34,6 +34,7 @@ interface ContentCardProps {
   onDownload?: () => void;
   onCopy?: () => void;
   onSelect?: () => void;
+  onOpenViewer?: () => void;
 }
 
 const typeIcons = {
@@ -58,6 +59,7 @@ export const ContentCard: React.FC<ContentCardProps> = ({
   onDownload,
   onCopy,
   onSelect,
+  onOpenViewer,
 }) => {
   const Icon = typeIcons[type];
   const isEmail = type === 'email';
@@ -120,7 +122,10 @@ export const ContentCard: React.FC<ContentCardProps> = ({
           {isEmail ? (
             <div className="p-8 space-y-8">
               {emailImage && (
-                <div className="rounded-xl overflow-hidden border border-white/5 shadow-2xl">
+                <div 
+                  className="rounded-xl overflow-hidden border border-white/5 shadow-2xl cursor-pointer"
+                  onClick={onOpenViewer}
+                >
                   <img 
                     src={emailImage} 
                     alt="email content" 
@@ -140,7 +145,10 @@ export const ContentCard: React.FC<ContentCardProps> = ({
               </div>
             </div>
           ) : (
-            <>
+            <div 
+              className="cursor-pointer"
+              onClick={onOpenViewer}
+            >
               {image ? (
                 <div className="w-full h-full overflow-hidden">
                   <img 
@@ -154,7 +162,7 @@ export const ContentCard: React.FC<ContentCardProps> = ({
                   <Icon className="h-12 w-12 text-muted-foreground/20" />
                 </div>
               )}
-            </>
+            </div>
           )}
 
           <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col gap-2 z-20">
@@ -204,7 +212,7 @@ export const ContentCard: React.FC<ContentCardProps> = ({
                     <Copy className="h-5 w-5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="left">Copy Text</TooltipContent>
+                <TooltipContent side="left">Copy to clipboard</TooltipContent>
               </Tooltip>
 
               <Tooltip>
