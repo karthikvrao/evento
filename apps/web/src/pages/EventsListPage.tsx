@@ -8,6 +8,7 @@ import { Logo } from '../components/brand/Logo';
 import { Button } from '../components/ui/button';
 import { Plus, LayoutGrid, List, Filter, Sparkles, Search } from 'lucide-react';
 import { Input } from '../components/ui/input';
+import { CreateEventModal } from '../components/modals/CreateEventModal';
 
 
 
@@ -71,7 +72,16 @@ export default function EventsListPage() {
   const [selectedType, setSelectedType] = useState('All');
   const [events, setEvents] = useState<Event[]>(MOCK_EVENTS);
   
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  
   const navigate = useNavigate();
+
+  const handleCreateEvent = (eventData: any) => {
+    console.log('Generating Event Space with data:', eventData);
+    // In Phase 7, this will call the API to create the event and then navigate
+    // For now, we'll just navigate to a mock ID
+    navigate('/events/new-event-mock-id');
+  };
 
   const toggleFavorite = (id: string) => {
     setEvents((prev: Event[]) => prev.map(e => e.id === id ? { ...e, isFavorite: !e.isFavorite } : e));
@@ -110,7 +120,7 @@ export default function EventsListPage() {
             
             <Button 
               className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20 flex items-center gap-2 px-6 h-11 font-semibold group rounded-xl"
-              onClick={() => {/* Trigger Create Event Modal later */}}
+              onClick={() => setIsCreateModalOpen(true)}
             >
               <Plus className="h-5 w-5 group-hover:rotate-90 transition-transform duration-300" />
               <span>Create Event</span>
@@ -171,7 +181,7 @@ export default function EventsListPage() {
               {/* New Event Card (Placeholder) */}
               <div 
                 className="group relative flex flex-col items-center justify-center h-full min-h-[300px] border-2 border-dashed border-border/50 rounded-2xl bg-accent/10 hover:bg-accent/20 hover:border-primary/40 transition-all duration-300 cursor-pointer text-center p-6"
-                onClick={() => {/* Trigger Create Event Modal */}}
+                onClick={() => setIsCreateModalOpen(true)}
               >
                 <div className="p-4 rounded-full bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-500 mb-4 scale-110">
                   <Plus className="h-8 w-8" />
@@ -240,6 +250,12 @@ export default function EventsListPage() {
           </div>
         </div>
       </footer>
+
+      <CreateEventModal 
+        isOpen={isCreateModalOpen} 
+        onClose={() => setIsCreateModalOpen(false)} 
+        onCreate={handleCreateEvent}
+      />
     </div>
   );
 }
