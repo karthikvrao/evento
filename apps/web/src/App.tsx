@@ -1,14 +1,15 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from './contexts/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
-import './App.css'
+import { LoadingSpinner } from './components/ui/LoadingSpinner'
 
-// Placeholder pages (Phase 1-5 will implement these)
-const SignInPlaceholder = () => <div className="p-8">Sign In Page</div>
-const SignUpPlaceholder = () => <div className="p-8">Sign Up Page</div>
-const EventsListPlaceholder = () => <div className="p-8">Events List Page (Protected)</div>
-const EventSpacePlaceholder = () => <div className="p-8">Event Space Page (Protected)</div>
+// Lazy load pages
+const SignInPage = lazy(() => import('./pages/SignInPage'))
+const SignUpPage = lazy(() => import('./pages/SignUpPage'))
+const EventsListPage = lazy(() => import('./pages/EventsListPage'))
+const EventSpacePlaceholder = () => <div className="p-8 font-geist text-foreground">Event Space Page (Protected)</div>
 
 const queryClient = new QueryClient()
 
@@ -17,32 +18,34 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/signin" element={<SignInPlaceholder />} />
-            <Route path="/signup" element={<SignUpPlaceholder />} />
+          <Suspense fallback={<LoadingSpinner fullScreen />}>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/signin" element={<SignInPage />} />
+              <Route path="/signup" element={<SignUpPage />} />
 
-            {/* Protected Routes */}
-            <Route
-              path="/events"
-              element={
-                <ProtectedRoute>
-                  <EventsListPlaceholder />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/events/:id"
-              element={
-                <ProtectedRoute>
-                  <EventSpacePlaceholder />
-                </ProtectedRoute>
-              }
-            />
+              {/* Protected Routes */}
+              <Route
+                path="/events"
+                element={
+                  <ProtectedRoute>
+                    <EventsListPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/events/:id"
+                element={
+                  <ProtectedRoute>
+                    <EventSpacePlaceholder />
+                  </ProtectedRoute>
+                }
+              />
 
-            {/* Default Redirects */}
-            <Route path="/" element={<Navigate to="/events" replace />} />
-          </Routes>
+              {/* Default Redirects */}
+              <Route path="/" element={<Navigate to="/events" replace />} />
+            </Routes>
+          </Suspense>
         </BrowserRouter>
       </AuthProvider>
     </QueryClientProvider>

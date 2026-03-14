@@ -1,5 +1,5 @@
 import React from 'react';
-import logoFull from '../assets/logo.png';
+import logoFull from '../../assets/logo.png';
 
 interface LogoProps {
   className?: string;
@@ -12,7 +12,7 @@ export const Logo: React.FC<LogoProps> = ({ className = '', showText = true }) =
       <img 
         src={logoFull} 
         alt="Evento" 
-        className={`h-8 w-auto object-contain ${className}`} 
+        className={`object-contain ${className}`} 
       />
     );
   }
@@ -22,7 +22,7 @@ export const Logo: React.FC<LogoProps> = ({ className = '', showText = true }) =
       {/* Fallback to a styled SVG E mark for the icon-only version */}
       <svg
         viewBox="0 0 100 100"
-        className="h-8 w-8 text-primary fill-current"
+        className="h-full w-full text-primary fill-current"
         xmlns="http://www.w3.org/2000/svg"
       >
         <rect x="10" y="10" width="80" height="20" rx="2" />
