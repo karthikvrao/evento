@@ -62,7 +62,7 @@ cp apps/agent_service/app/.env.example apps/agent_service/app/.env
 
 Key vars:
 ```
-GOOGLE_GENAI_USE_VERTEXAI=FALSE   # TRUE for Vertex AI
+GOOGLE_GENAI_USE_VERTEXAI=FALSE   # TRUE for Vertex AI, FALSE for AI Studio
 GOOGLE_API_KEY=<your-key>         # Google AI Studio key (local dev)
 GOOGLE_CLOUD_PROJECT=<project-id>
 GOOGLE_CLOUD_LOCATION=us-central1

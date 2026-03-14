@@ -1,34 +1,51 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { AuthProvider } from './contexts/AuthContext'
+import { ProtectedRoute } from './components/ProtectedRoute'
 import './App.css'
 
-function App() {
-  const [count, setCount] = useState(0)
+// Placeholder pages (Phase 1-5 will implement these)
+const SignInPlaceholder = () => <div className="p-8">Sign In Page</div>
+const SignUpPlaceholder = () => <div className="p-8">Sign Up Page</div>
+const EventsListPlaceholder = () => <div className="p-8">Events List Page (Protected)</div>
+const EventSpacePlaceholder = () => <div className="p-8">Event Space Page (Protected)</div>
 
+const queryClient = new QueryClient()
+
+function App() {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/signin" element={<SignInPlaceholder />} />
+            <Route path="/signup" element={<SignUpPlaceholder />} />
+
+            {/* Protected Routes */}
+            <Route
+              path="/events"
+              element={
+                <ProtectedRoute>
+                  <EventsListPlaceholder />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/events/:id"
+              element={
+                <ProtectedRoute>
+                  <EventSpacePlaceholder />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Default Redirects */}
+            <Route path="/" element={<Navigate to="/events" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </QueryClientProvider>
   )
 }
 
