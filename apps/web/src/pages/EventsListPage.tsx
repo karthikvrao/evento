@@ -98,7 +98,7 @@ export default function EventsListPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
       
-      <main className="container mx-auto px-4 py-8 max-w-7xl animate-in fade-in slide-in-from-bottom-3 duration-500">
+      <main className="max-w-[98%] mx-auto px-2 md:px-4 py-8 animate-in fade-in slide-in-from-bottom-3 duration-500">
         {/* Page Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
           <div>
