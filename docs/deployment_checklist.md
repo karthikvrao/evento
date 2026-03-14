@@ -68,6 +68,13 @@ Once the CI/CD pipeline deploys for the first time, you must manually go into th
 1. Go to **Secret Manager** and create a secret for `FIREBASE_PROJECT_ID` or any other sensitive keys.
 2. Grant the `evento-agent-sa` service account the **Secret Manager Secret Accessor** (`roles/secretmanager.secretAccessor`) role.
 3. In Cloud Run > `Variables & Secrets`, reference the secret directly.
-3. Deploy the new revision.
+4. Deploy the new revision.
+
+## 6. Local Development Auth Setup
+To run the backend locally and verify Firebase tokens:
+1. Go to **Firebase Console** > **Project Settings** > **Service Accounts**.
+2. Click **Generate New Private Key**.
+3. Save the JSON file as `service-account.json` in `apps/agent_service/` (this file is ignored by git).
+4. In your local `.env`, set `GOOGLE_APPLICATION_CREDENTIALS=service-account.json`.
 
 Once all these steps are complete, the CI/CD pipeline defined in [.github/workflows/deploy.yml](file:///Volumes/Jaaga1/repos/evento/.github/workflows/deploy.yml) will be able to automatically deploy updates to both the Vite Frontend and the FastAPI Backend on every push to the `main` branch.

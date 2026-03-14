@@ -5,10 +5,15 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 router = APIRouter()
 
-# Initialize Firebase (uses Application Default Credentials on GCP,
-# or explicit API keys if using FIREBASE_PROJECT_ID/service accounts locally)
+from ..config import settings
+
+# Initialize Firebase
+# On GCP, this uses Application Default Credentials automatically.
+# Locally, it uses credentials from GOOGLE_APPLICATION_CREDENTIALS or gcloud login.
 try:
-    firebase_admin.initialize_app()
+    firebase_admin.initialize_app(options={
+        'projectId': settings.firebase_project_id,
+    })
 except ValueError:
     # Already initialized
     pass
