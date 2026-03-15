@@ -9,19 +9,28 @@ logger = logging.getLogger(__name__)
 from ..config import settings
 from ..services import firestore_service
 from .auth import get_current_user
-from ..models.chat import InitChatResponse
+from ..models.chat import InitChatRequest, InitChatResponse
 from google.genai import types
 from app.utils.helpers import process_image
 
 router = APIRouter()
 
 @router.post("/chat/init", response_model=InitChatResponse)
-async def init_chat(user: dict = Depends(get_current_user)):
+async def init_chat(payload: InitChatRequest, user: dict = Depends(get_current_user)):
     """Initialize a new chat session and draft event for the authenticated user."""
     user_id = user["uid"]
-    
-    # Create draft event and chat session entry in a single transaction
-    result = await firestore_service.create_event_and_session(user_id)
+
+    # Build optional event data from the request payload
+    event_data: dict = {
+        "name": payload.name,
+        "description": payload.description,
+    }
+    if payload.event_type is not None:
+        event_data["metadata"] = {"event_type": payload.event_type}
+
+    # Create draft event + chat session in a single batch write
+    result = await firestore_service.create_event_and_session(user_id, event_data=event_data)
+
     return result
 
 @router.websocket("/chat/ws/{event_id}/{user_id}/{session_id}")

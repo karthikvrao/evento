@@ -6,7 +6,7 @@ from google.adk.sessions import InMemorySessionService, VertexAiSessionService
 
 from .config import settings
 from .agent import root_agent
-from .api import auth, health, chat, media
+from .api import auth, health, chat, media, events
 
 # ── Session service (env-flag selects impl) ──────────────────────────────────
 if settings.runtime_env == "production":
@@ -48,6 +48,7 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(chat.router)
 app.include_router(media.router)
+app.include_router(events.router)
 
 if settings.runtime_env == "local":
     import os
