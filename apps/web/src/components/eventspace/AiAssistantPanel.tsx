@@ -8,7 +8,8 @@ import {
   Circle,
   X,
   Video,
-  FileText
+  FileText,
+  ImageIcon
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
@@ -30,6 +31,8 @@ interface AiAssistantPanelProps {
   selectedContent?: any[];
   onRemoveSelected?: (id: string) => void;
   children?: React.ReactNode;
+  onSend?: (text: string) => void;
+  connected?: boolean;
 }
 
 export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({ 
@@ -40,9 +43,25 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
   onToggle,
   selectedContent = [],
   onRemoveSelected,
-  children
+  children,
+  onSend,
+  connected = true
 }) => {
   const [input, setInput] = useState('');
+
+  const handleSubmit = () => {
+    if (input.trim() && onSend) {
+      onSend(input);
+      setInput('');
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
 
   return (
     <TooltipProvider delay={0}>
@@ -66,7 +85,7 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
         <Button 
           variant="secondary" 
           size="icon" 
-          className="absolute -left-3 top-20 h-6 w-6 rounded-full border border-border shadow-md z-50 bg-background hover:bg-accent"
+          className="absolute -left-3 top-20 h-6 w-6 rounded-full border border-border shadow-md z-50 bg-background hover:bg-accent focus:outline-none"
           onClick={onToggle}
         >
           {!isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
@@ -83,10 +102,10 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
               <h2 className="text-sm font-bold tracking-tight">AI Assistant</h2>
             </div>
           ) : (
-            <div className="mx-auto">
+            <div className="mx-auto mt-2">
               <Tooltip>
                 <TooltipTrigger>
-                  <div className="p-1 cursor-pointer">
+                  <div className="p-2 cursor-pointer rounded-xl hover:bg-white/5 transition-colors" onClick={onToggle}>
                     <Sparkles className="h-5 w-5 text-primary" />
                   </div>
                 </TooltipTrigger>
@@ -99,35 +118,33 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
         </div>
 
         {/* Message Thread */}
-        {!isCollapsed && (
-          <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
-            {children || (
-              <div className="text-sm text-muted-foreground italic text-center py-10">
-                No messages yet.
+        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-col-reverse">
+          {isCollapsed ? null : (
+            children || (
+              <div className="text-sm text-muted-foreground italic text-center py-10 w-full h-full flex items-center justify-center">
+                Waiting for connection...
               </div>
-            )}
-          </div>
-        )}
+            )
+          )}
+        </div>
 
         {/* Input Bar */}
         {!isCollapsed && (
           <div className="p-4 border-t border-border/40 bg-background/50">
             {/* Selected Content Thumbnails */}
             {selectedContent.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-3 max-h-32 overflow-y-auto no-scrollbar p-1">
+              <div className="flex flex-wrap gap-2 mb-3 max-h-32 overflow-y-auto custom-scrollbar p-1">
                 {selectedContent.map((item) => (
                   <div key={item.id} className="relative group/thumb">
                     <div className="w-12 h-12 rounded-lg overflow-hidden border border-border bg-accent/20 flex items-center justify-center">
                       {item.type === 'email' && <FileText className="h-5 w-5 text-muted-foreground" />}
                       {item.type === 'poster' && (
-                        <img src={item.image || item.emailImage} alt="" className="w-full h-full object-cover" />
+                        item.image ? <img src={item.image || item.emailImage} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="h-4 w-4 text-muted-foreground" />
                       )}
                       {item.type === 'video' && (
-                        <div className="relative w-full h-full">
-                          <img src={item.image} alt="" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                            <Video className="h-4 w-4 text-white" />
-                          </div>
+                        <div className="relative w-full h-full flex items-center justify-center">
+                          {item.image ? <img src={item.image} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" /> : null}
+                          <Video className="h-4 w-4 text-white drop-shadow-md z-10" />
                         </div>
                       )}
                       {item.type === 'text' && <FileText className="h-5 w-5 text-muted-foreground" />}
@@ -148,25 +165,32 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                 variant="ghost" 
                 size="icon" 
                 className="absolute left-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-primary transition-colors hover:bg-primary/10 rounded-full"
+                disabled={!connected}
               >
                 <Paperclip className="h-4 w-4" />
               </Button>
               <Input 
-                placeholder="Type a request..." 
+                placeholder={connected ? "Type a request..." : "Connecting..."}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={!connected}
                 className="pl-10 pr-12 h-11 bg-accent/20 border-border/40 focus:border-primary/50 transition-all rounded-xl text-sm"
               />
               <Button 
                 size="icon" 
+                onClick={handleSubmit}
+                disabled={!connected || !input.trim()}
                 className={cn(
                   "absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full transition-all duration-300",
-                  input ? "bg-primary text-white shadow-md scale-100" : "bg-muted-foreground/20 text-muted-foreground scale-90 opacity-50"
+                  input.trim() ? "bg-primary text-white shadow-md scale-100 opacity-100" : "bg-muted-foreground/20 text-muted-foreground scale-90 opacity-50"
                 )}
-                disabled={!input}
               >
                 <Send className="h-3.5 w-3.5" />
               </Button>
+            </div>
+            <div className="text-center mt-2">
+              <span className="text-[10px] text-muted-foreground">Evento Agent can make mistakes.</span>
             </div>
           </div>
         )}

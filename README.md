@@ -148,6 +148,14 @@ gcloud run deploy evento-web --source apps/web
 - **Agents:** Google ADK (Python), Gemini 2.0 Flash-001 / gemini-2.0-flash-preview-image-generation / Veo
 - **Cloud:** Cloud Run, Vertex AI Session Service, Firestore, GCS, Firebase Auth
 
+## Security & Disclaimer (Hackathon Mode) ⚠️
+
+> [!IMPORTANT]
+> This project is configured for rapid prototyping and hackathon demonstration. 
+> 
+> **Public GCS Storage**: Generated media assets are served via public GCS URLs (`https://storage.googleapis.com/...`). This requires the bucket to have `allUsers:Storage Object Viewer` permissions. For a production environment, you should transition to **Signed URLs** or **Firebase Hosting with Restricted Access**.
+
+
 ## License
 
 MIT

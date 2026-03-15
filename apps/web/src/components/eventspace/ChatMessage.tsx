@@ -1,17 +1,13 @@
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
 import { cn } from '../../lib/utils';
-import { ImageIcon, Video } from 'lucide-react';
-
-interface MediaItem {
-  type: 'image' | 'video';
-  url: string;
-  contentId?: string;
-}
+import { ImageIcon, Video, FileText } from 'lucide-react';
+import type { MediaRef } from '../../types/chat';
 
 interface ChatMessageProps {
   role: 'user' | 'assistant';
   text: string;
-  media?: MediaItem[];
+  mediaRefs?: MediaRef[];
   timestamp: string;
   onMediaClick?: (contentId: string) => void;
 }
@@ -19,7 +15,7 @@ interface ChatMessageProps {
 export const ChatMessage: React.FC<ChatMessageProps> = ({
   role,
   text,
-  media,
+  mediaRefs,
   timestamp,
   onMediaClick,
 }) => {
@@ -37,30 +33,52 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
           ? "bg-accent/50 text-foreground rounded-tl-none border-border/20 group-hover:bg-accent/70" 
           : "bg-primary text-white rounded-tr-none border-primary/20 shadow-lg shadow-primary/10 group-hover:shadow-primary/20"
       )}>
-        {text}
+        {/* Markdown Text rendering */}
+        <div className={cn("prose prose-sm max-w-none break-words", isAssistant ? "prose-invert" : "text-white")}>
+          <ReactMarkdown
+            components={{
+              // Add custom styling for paragraphs and links to blend with the chat bubble
+              p: ({node, ...props}) => <p className="m-0 mb-2 last:mb-0" {...props} />,
+              a: ({node, ...props}) => <a className="underline hover:opacity-80 transition-opacity" target="_blank" rel="noopener noreferrer" {...props} />,
+            }}
+          >
+            {text}
+          </ReactMarkdown>
+        </div>
 
         {/* Interleaved Media */}
-        {media && media.length > 0 && (
+        {mediaRefs && mediaRefs.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-2">
-            {media.map((item, idx) => (
+            {mediaRefs.map((item, idx) => (
               <div 
-                key={idx} 
+                key={item.asset_id || idx} 
                 className={cn(
                   "relative w-20 h-20 rounded-lg overflow-hidden border border-white/10 shadow-sm transition-transform duration-200",
-                  item.contentId ? "cursor-pointer hover:scale-105 active:scale-95 hover:border-primary/50" : "cursor-default"
+                  item.asset_id ? "cursor-pointer hover:scale-105 active:scale-95 hover:border-primary/50" : "cursor-default"
                 )}
-                onClick={() => item.contentId && onMediaClick?.(item.contentId)}
+                onClick={() => item.asset_id && onMediaClick?.(item.asset_id)}
+                title={item.asset_type || "Media Attachment"}
               >
-                <img 
-                  src={item.url} 
-                  alt={`attachment-${idx}`} 
-                  className="w-full h-full object-cover" 
-                />
+                {/* Fallback to URL if thumbnail is missing */}
+                {item.asset_type === 'image' || item.thumbnail_url ? (
+                  <img 
+                    src={item.thumbnail_url || item.url} 
+                    alt={`attachment-${idx}`} 
+                    className="w-full h-full object-cover" 
+                  />
+                ) : (
+                  <div className="w-full h-full bg-black/40 flex items-center justify-center">
+                    {item.asset_type === 'video' ? <Video className="h-6 w-6 text-white/70" /> : <FileText className="h-6 w-6 text-white/70" />}
+                  </div>
+                )}
+                
                 <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                  {item.type === 'image' ? (
-                    <ImageIcon className="h-3 w-3 text-white opacity-70" />
+                  {item.asset_type === 'image' ? (
+                    <ImageIcon className="h-3 w-3 text-white opacity-40 shadow-sm" />
+                  ) : item.asset_type === 'video' ? (
+                    <Video className="h-6 w-6 text-white opacity-80 drop-shadow-md" />
                   ) : (
-                    <Video className="h-3 w-3 text-white opacity-70" />
+                    <FileText className="h-4 w-4 text-white opacity-70" />
                   )}
                 </div>
               </div>

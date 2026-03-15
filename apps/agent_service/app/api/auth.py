@@ -1,3 +1,4 @@
+import os
 import firebase_admin
 from firebase_admin import auth as fb_auth
 from fastapi import APIRouter, Depends, HTTPException
@@ -10,6 +11,15 @@ from ..config import settings
 # Initialize Firebase
 # On GCP, this uses Application Default Credentials automatically.
 # Locally, it uses credentials from GOOGLE_APPLICATION_CREDENTIALS or gcloud login.
+if settings.google_application_credentials:
+    if os.path.isabs(settings.google_application_credentials):
+         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials
+    else:
+        # If relative, join with the app/ package root
+        base_dir = os.path.dirname(os.path.dirname(__file__))
+        abs_path = os.path.join(base_dir, settings.google_application_credentials)
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = abs_path
+
 try:
     firebase_admin.initialize_app(options={
         'projectId': settings.firebase_project_id,

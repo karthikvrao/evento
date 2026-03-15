@@ -102,7 +102,7 @@ async def get_events_for_user(user_id: str, offset: int, limit: int) -> List[Dic
         db = get_db()
         query = (
             db.collection("events")
-            .where("created_by", "==", user_id)
+            .where(filter=FieldFilter("created_by", "==", user_id))
             .order_by("updated_at", direction=firestore.Query.DESCENDING)
         )
 
@@ -126,7 +126,7 @@ async def count_events_for_user(user_id: str) -> int:
     """
     try:
         db = get_db()
-        query = db.collection("events").where("created_by", "==", user_id)
+        query = db.collection("events").where(filter=FieldFilter("created_by", "==", user_id))
         count = 0
         async for _ in query.stream():
             count += 1
@@ -151,5 +151,76 @@ async def get_event_by_id(event_id: str) -> Optional[Dict[str, Any]]:
         return _normalize_timestamps(data)
     except Exception as e:
         logger.error(f"Error fetching event {event_id}: {e}")
+        raise
+
+
+# ── Media Assets ──────────────────────────────────────────────────────────────
+
+def gs_to_public_url(gs_uri: str) -> str:
+    """Convert a gs://bucket/path URI to a public HTTPS URL.
+
+    For local dev URIs (local://...) returns a local serving path.
+    """
+    if gs_uri.startswith("local://"):
+        return f"/media/local/{gs_uri.replace('local://', '')}"
+    if gs_uri.startswith("gs://"):
+        # gs://bucket-name/path → https://storage.googleapis.com/bucket-name/path
+        return gs_uri.replace("gs://", "https://storage.googleapis.com/", 1)
+    return gs_uri
+
+
+async def save_media_asset(asset_data: Dict[str, Any]) -> str:
+    """Save a media asset record to the media_assets collection.
+
+    Args:
+        asset_data: Dict matching the media_assets schema
+            (event_id, session_id, source, asset_type, gcs_path, etc.)
+
+    Returns:
+        The auto-generated Firestore document ID (= shared asset_id).
+    """
+    try:
+        db = get_db()
+        doc_ref = db.collection("media_assets").document()
+        asset_data["created_at"] = firestore.SERVER_TIMESTAMP
+        # Ensure public_url is derived from gcs_path if not explicitly set
+        if "public_url" not in asset_data and "gcs_path" in asset_data:
+            asset_data["public_url"] = gs_to_public_url(asset_data["gcs_path"])
+        await doc_ref.set(asset_data)
+        logger.info(f"Saved media asset {doc_ref.id} for event {asset_data.get('event_id')}")
+        return doc_ref.id
+    except Exception as e:
+        logger.error(f"Error saving media asset: {e}")
+        raise
+
+
+async def get_media_for_event(
+    event_id: str,
+    session_id: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Fetch media assets for an event, optionally filtered by session_id.
+
+    Args:
+        event_id: The event to query assets for.
+        session_id: Optional; narrows results to a specific chat session.
+
+    Returns:
+        List of asset dicts, each with an 'id' field (the Firestore doc ID).
+    """
+    try:
+        db = get_db()
+        query = db.collection("media_assets").where(filter=FieldFilter("event_id", "==", event_id))
+        if session_id:
+            query = query.where(filter=FieldFilter("session_id", "==", session_id))
+        query = query.order_by("created_at", direction=firestore.Query.DESCENDING)
+
+        results: List[Dict[str, Any]] = []
+        async for doc in query.stream():
+            data = doc.to_dict() or {}
+            data["id"] = doc.id
+            results.append(_normalize_timestamps(data))
+        return results
+    except Exception as e:
+        logger.error(f"Error fetching media for event {event_id}: {e}")
         raise
 

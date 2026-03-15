@@ -1,9 +1,57 @@
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, HTTPException
+from typing import Optional
 from app.api.auth import get_current_user
 from app.services.storage_service import storage_svc
+from app.services.firestore_service import save_media_asset, get_media_for_event
 from app.utils.constants import SIGNED_URL_EXPIRATION_MINUTES
 
 router = APIRouter(tags=["Media"])
+
+@router.get("/events/{event_id}/media")
+async def get_event_media(
+    event_id: str,
+    session_id: Optional[str] = Query(None, description="Optional session filter"),
+    user: dict = Depends(get_current_user)
+):
+    """Fetch all generated/uploaded media for an event."""
+    try:
+        assets = await get_media_for_event(event_id, session_id=session_id)
+        return {"media_assets": assets}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/events/{event_id}/media")
+async def record_user_uploaded_media(
+    event_id: str,
+    request: Request,
+    user: dict = Depends(get_current_user)
+):
+    """Record metadata for a file a user uploaded via signed URL.
+    
+    Expected body shape:
+    { "session_id": string, "gcs_path": string, "asset_type": string, "mime_type": string, "title": string }
+    """
+    body = await request.json()
+    try:
+        asset_id = await save_media_asset({
+            "event_id": event_id,
+            "session_id": body.get("session_id"),
+            "source": "user_upload",
+            "asset_type": body.get("asset_type", "image"),
+            "subtype": None,
+            "parent_asset_id": None,
+            "gcs_path": body.get("gcs_path"),
+            "content_category": "attachment",
+            "title": body.get("title", "User Upload"),
+            "mime_type": body.get("mime_type", "application/octet-stream"),
+            "rich_content": None,
+            "subject": None,
+        })
+        return {"status": "success", "asset_id": asset_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/media/signed-url")
 def get_signed_url(
@@ -42,3 +90,4 @@ async def local_upload(request: Request, dest_path: str = Query(...)):
         storage_svc.upload_bytes(data, dest_path, content_type)
         return {"status": "success"}
     return {"status": "ignored"}
+

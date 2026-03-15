@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     agent_app_name: str = "evento"
     runtime_env: str = "local"  # "local" | "production"
     firebase_api_key: str = ""
+    google_application_credentials: str | None = None
     # Live API — reserved, not yet active
     live_api_enabled: bool = False
 

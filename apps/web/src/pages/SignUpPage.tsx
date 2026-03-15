@@ -6,7 +6,7 @@ import { Logo } from '../components/brand/Logo';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { FileText, Mic, Play, Eye, EyeOff } from 'lucide-react';
+import { FileText, Image, Play, Eye, EyeOff } from 'lucide-react';
 
 export default function SignUpPage() {
   const [fullName, setFullName] = useState('');
@@ -67,7 +67,8 @@ export default function SignUpPage() {
 
           <div className="grid grid-cols-3 gap-4">
             <FeatureTile icon={<FileText className="h-5 w-5" />} label="TEXT" color="blue" />
-            <FeatureTile icon={<Mic className="h-5 w-5" />} label="AUDIO" color="indigo" />
+            <FeatureTile icon={<Image className="h-5 w-5" />} label="IMAGE" color="blue" />
+            {/* <FeatureTile icon={<Mic className="h-5 w-5" />} label="AUDIO" color="indigo" /> */}
             <FeatureTile icon={<Play className="h-5 w-5" />} label="VIDEO" color="sky" />
           </div>
         </div>

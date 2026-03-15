@@ -6,7 +6,7 @@ import { Logo } from '../components/brand/Logo';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { FileText, Mic, Play, Eye, EyeOff } from 'lucide-react';
+import { FileText, Image, Play, Eye, EyeOff } from 'lucide-react';
 
 export default function SignInPage() {
   const [email, setEmail] = useState('');
@@ -60,12 +60,13 @@ export default function SignInPage() {
             Generate rich, mixed-media event content with AI
           </h1>
           <p className="text-base text-muted-foreground mb-8 max-w-xl leading-relaxed">
-            Experience the power of glassmorphic design and abstract 3D elements representing text, audio, and video streams.
+            Experience the power and ease of AI assisted cohesive event content creation.
           </p>
 
           <div className="grid grid-cols-3 gap-4">
             <FeatureTile icon={<FileText className="h-5 w-5" />} label="TEXT" color="blue" />
-            <FeatureTile icon={<Mic className="h-5 w-5" />} label="AUDIO" color="indigo" />
+            <FeatureTile icon={<Image className="h-5 w-5" />} label="IMAGE" color="blue" />
+            {/* <FeatureTile icon={<Mic className="h-5 w-5" />} label="AUDIO" color="indigo" /> */}
             <FeatureTile icon={<Play className="h-5 w-5" />} label="VIDEO" color="sky" />
           </div>
         </div>

@@ -1,6 +1,7 @@
 import json
 import asyncio
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, HTTPException
+from typing import Optional, List, Dict
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, HTTPException, Request
 from firebase_admin import auth as fb_auth
 
 import logging
@@ -12,6 +13,8 @@ from .auth import get_current_user
 from ..models.chat import InitChatRequest, InitChatResponse
 from google.genai import types
 from app.utils.helpers import process_image
+from app.services.firestore_service import gs_to_public_url
+import re
 
 router = APIRouter()
 
@@ -32,6 +35,78 @@ async def init_chat(payload: InitChatRequest, user: dict = Depends(get_current_u
     result = await firestore_service.create_event_and_session(user_id, event_data=event_data)
 
     return result
+
+
+@router.get("/chat/{session_id}/history")
+async def get_chat_history(session_id: str, request: Request, user: dict = Depends(get_current_user)):
+    """Fetch the full chat history for a session to reconstruct the timeline."""
+    # Access session_service from app state (set in main.py) to avoid circular imports
+    session_service = request.app.state.session_service
+    
+    app_name = settings.agent_app_name
+    user_id = user["uid"]
+    
+    session = await session_service.get_session(
+        app_name=app_name, user_id=user_id, session_id=session_id
+    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+        
+    messages: List[Dict] = []
+    
+    # Iterate through the ADK TraceEvent timeline
+    for event in session.events:
+        if event.type == "human_input":
+            parts = event.payload.parts
+            text = "\n".join([p.text for p in parts if p.text])
+            messages.append({
+                "type": "message",
+                "role": "user",
+                "text": text,
+                "timestamp": event.timestamp.isoformat() if event.timestamp else None
+            })
+        elif event.type == "agent_output" and event.payload.get("is_final_response"):
+            content = event.payload.get("content", {})
+            parts = content.get("parts", [])
+            raw_text = "\n".join([p.get("text", "") for p in parts if p.get("text")])
+            
+            # Use same logic as WS to parse JSON and extract text + media_refs
+            try:
+                data = json.loads(raw_text)
+                if isinstance(data, dict) and "data" in data:
+                    text_content = data["data"].get("text", str(data["data"]))
+                    media_refs = data.get("media_assets", [])
+                    messages.append({
+                        "type": "message", 
+                        "role": "assistant", 
+                        "text": text_content, 
+                        "media_refs": media_refs,
+                        "timestamp": event.timestamp.isoformat() if event.timestamp else None
+                    })
+                    continue
+            except json.JSONDecodeError:
+                pass
+                
+            messages.append({
+                "type": "message",
+                "role": "assistant",
+                "text": raw_text,
+                "timestamp": event.timestamp.isoformat() if event.timestamp else None
+            })
+            
+    return {"messages": messages}
+
+
+def _replace_gcs_urls_with_public(text: str) -> str:
+    """Find gs:// URLs in markdown text and replace with https://storage.googleapis.com/..."""
+    # Pattern looks for gs:// followed by non-whitespace/non-closing-bracket chars
+    pattern = r"gs://[^\s\)\]\"\'\>]+"
+    
+    def replace_match(match):
+        return gs_to_public_url(match.group(0))
+        
+    return re.sub(pattern, replace_match, text)
+
 
 @router.websocket("/chat/ws/{event_id}/{user_id}/{session_id}")
 async def chat_ws(websocket: WebSocket, event_id: str, user_id: str, session_id: str, token: str = Query(...)):
@@ -111,12 +186,31 @@ async def chat_ws(websocket: WebSocket, event_id: str, user_id: str, session_id:
                 # When the agent responds, send it back to the client
                 if event.is_final_response():
                     text_parts = [p.text for p in event.content.parts if p.text]
-                    response_text = "\n".join(text_parts)
-                    await websocket.send_json({
+                    raw_response_text = "\n".join(text_parts)
+                    
+                    response_payload = {
                         "type": "message",
                         "author": event.author,
-                        "text": response_text
-                    })
+                        "text": raw_response_text
+                    }
+                    
+                    # Try parsing as JSON to extract media_refs from multimodal content tools
+                    try:
+                        data = json.loads(raw_response_text)
+                        if isinstance(data, dict) and "data" in data:
+                            # 1. Extract the prose text (could be in data.text or just dumping data)
+                            text_content = data["data"].get("text", str(data["data"]))
+                            
+                            # 2. Extract media references
+                            media_refs = data.get("media_assets", [])
+                            
+                            response_payload["text"] = _replace_gcs_urls_with_public(text_content)
+                            response_payload["media_refs"] = media_refs
+                    except json.JSONDecodeError:
+                        # Standard prose response, just tidy up any GS URLs
+                        response_payload["text"] = _replace_gcs_urls_with_public(raw_response_text)
+                        
+                    await websocket.send_json(response_payload)
             message_queue.task_done()
 
     try:
@@ -124,12 +218,10 @@ async def chat_ws(websocket: WebSocket, event_id: str, user_id: str, session_id:
         await asyncio.gather(upstream_task(), downstream_task())
         logger.debug("asyncio.gather completed normally")
     except WebSocketDisconnect:
-        # User disconnected usually
         logger.debug("Client disconnected normally")
-        pass
     except asyncio.CancelledError:
         logger.debug("asyncio.gather was cancelled")
-        pass
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
         await websocket.close(code=1011, reason="Internal error")
+

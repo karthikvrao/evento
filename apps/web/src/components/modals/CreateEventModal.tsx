@@ -18,31 +18,33 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '../ui/select';
-import { PartyPopper, Zap, X } from 'lucide-react';
+import { PartyPopper, Zap, X, Loader2 } from 'lucide-react';
 
 interface CreateEventModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreate: (eventData: any) => void;
+  /** Called with the form data — can be async (returns a promise). */
+  onCreate: (eventData: { name: string; description?: string; type?: string }) => void | Promise<void>;
+  /** When true, the submit button shows a spinner and the form is disabled. */
+  isCreating?: boolean;
 }
 
-export function CreateEventModal({ isOpen, onClose, onCreate }: CreateEventModalProps) {
+export function CreateEventModal({ isOpen, onClose, onCreate, isCreating = false }: CreateEventModalProps) {
   const [name, setName] = useState('');
   const [type, setType] = useState('');
   const [description, setDescription] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onCreate({ 
+    await onCreate({ 
       name, 
-      type, 
-      description 
+      type: type || undefined, 
+      description: description || undefined,
     });
-    // Reset form
+    // Reset form after successful creation
     setName('');
     setType('');
     setDescription('');
-    onClose();
   };
 
   return (
@@ -72,7 +74,7 @@ export function CreateEventModal({ isOpen, onClose, onCreate }: CreateEventModal
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="px-6 py-4 space-y-5">
-          <div className="space-y-4">
+          <fieldset disabled={isCreating} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name" className="text-xs font-bold uppercase tracking-wider text-muted-foreground/50 ml-0.5">Event Name</Label>
               <Input 
@@ -113,23 +115,34 @@ export function CreateEventModal({ isOpen, onClose, onCreate }: CreateEventModal
                 required
               />
             </div>
-          </div>
+          </fieldset>
 
           <div className="pt-4 flex flex-col-reverse sm:flex-row gap-3">
             <Button 
               type="button" 
               variant="outline" 
               onClick={onClose}
+              disabled={isCreating}
               className="h-11 flex-1 border-border/10 hover:bg-white/5 text-white font-semibold rounded-xl transition-all duration-300 text-sm"
             >
               Cancel
             </Button>
             <Button 
               type="submit" 
+              disabled={isCreating}
               className="h-11 flex-[1.5] bg-primary hover:bg-primary/90 text-primary-foreground font-bold shadow-lg shadow-primary/10 transition-all duration-300 rounded-xl flex items-center justify-center gap-2 group text-sm"
             >
-              <span>Generate Event Space</span>
-              <Zap className="h-4 w-4 fill-current group-hover:scale-110 transition-transform duration-300" />
+              {isCreating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Creating…</span>
+                </>
+              ) : (
+                <>
+                  <span>Generate Event Space</span>
+                  <Zap className="h-4 w-4 fill-current group-hover:scale-110 transition-transform duration-300" />
+                </>
+              )}
             </Button>
           </div>
         </form>

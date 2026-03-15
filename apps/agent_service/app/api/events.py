@@ -108,3 +108,64 @@ async def patch_event(
 
     return Event(**updated)
 
+
+@router.get("/events/{event_id}", response_model=Event)
+async def get_event(
+    event_id: str,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> Event:
+    """Fetch a single event by ID, ensuring the authenticated user owns it."""
+    user_id = user["uid"]
+    
+    try:
+        event_dict = await firestore_service.get_event_by_id(event_id)
+    except Exception as e:
+        logger.error(f"Failed to fetch event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load event",
+        )
+        
+    if not event_dict:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
+        
+    if event_dict.get("created_by") != user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to view this event",
+        )
+        
+    return Event(**event_dict)
+
+
+@router.get("/events/{event_id}/media")
+async def get_event_media(
+    event_id: str,
+    session_id: str = Query(None),
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Fetch media assets associated with an event, optionally filtered by session_id."""
+    user_id = user["uid"]
+    
+    try:
+        event_dict = await firestore_service.get_event_by_id(event_id)
+        if not event_dict or event_dict.get("created_by") != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to view this event's media",
+            )
+            
+        media = await firestore_service.get_media_for_event(event_id, session_id)
+        return {"media_assets": media}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch media for event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load media assets",
+        )
+

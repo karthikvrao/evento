@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router';
+import { useParams, useNavigate } from 'react-router';
+import { getAuth } from 'firebase/auth';
 import { Navbar } from '../components/Navbar';
 import { CreateEventModal } from '../components/modals/CreateEventModal';
 import { FilterBar } from '../components/eventspace/FilterBar';
@@ -9,84 +10,14 @@ import { ContentCard } from '../components/eventspace/ContentCard';
 import { ChatMessage } from '../components/eventspace/ChatMessage';
 import { MediaViewerModal } from '../components/modals/MediaViewerModal';
 import type { MediaItem } from '../components/modals/MediaViewerModal';
-
-// Mock data
-const mockEvents = [
-  { id: '1', name: 'Tech Innovation Summit 2026' },
-  { id: '2', name: 'Product Launch Workshop' },
-  { id: '3', name: 'Marketing Strategy Session' },
-];
-
-const mockContent = [
-  {
-    id: 'c1',
-    title: 'Welcome Email Draft',
-    type: 'email' as const,
-    subject: 'Your Exclusive Invitation to Tech Nexus 2026',
-    content: 'Get ready for an immersive experience at the Tech Innovation Summit. We are excited to have you join us for a day of inspiration and networking.',
-    emailImage: 'https://images.unsplash.com/photo-1540575861501-7cf05a4b125a?w=1200&h=400&fit=crop',
-    isFavorite: true,
-    timestamp: '10:30 AM',
-  },
-  {
-    id: 'c2',
-    title: 'Official Event Poster',
-    type: 'poster' as const,
-    image: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&q=80',
-    isFavorite: false,
-    timestamp: '10:30 AM',
-  },
-  {
-    id: 'c5',
-    title: 'Workshop Variations',
-    type: 'poster' as const,
-    image: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=800&q=80',
-    isFavorite: false,
-    timestamp: '10:30 AM',
-  },
-  {
-    id: 'c4',
-    title: 'Keynote Speaker Bio',
-    type: 'text' as const,
-    content: 'Biography and introduction for Dr. Sarah Chen, our main keynote speaker.',
-    isFavorite: false,
-    timestamp: '10:35 AM',
-  },
-  {
-    id: 'c3',
-    title: 'Social Media Teaser',
-    type: 'video' as const,
-    image: 'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=800&q=80',
-    isFavorite: true,
-    timestamp: '10:35 AM',
-  },
-];
-
-const mockMessages = [
-  {
-    role: 'assistant' as const,
-    text: "Hi! I've analyzed your event details. Would you like me to generate some initial drafts for the email newsletter or start with the poster designs?",
-    timestamp: '10:24 AM',
-  },
-  {
-    role: 'user' as const,
-    text: "Let's start with the posters first. Something modern and tech-focused.",
-    timestamp: '10:25 AM',
-  },
-  {
-    role: 'assistant' as const,
-    text: "Great choice! Here are a few concepts I've generated with different visual styles. Click them to see them in the main view!",
-    media: [
-      { type: 'image' as const, url: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=200&q=80', contentId: 'c2' },
-      { type: 'image' as const, url: 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=200&q=80', contentId: 'c5' },
-    ],
-    timestamp: '10:25 AM',
-  },
-];
+import type { WsAgentMessage } from '../types/chat';
+import { useEvent, useChatHistory, useEventMedia, useCreateEvent } from '../hooks/useEvents';
 
 export default function EventSpacePage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   
+  // UI State
   const [leftSidebarWidth, setLeftSidebarWidth] = useState(256);
   const [rightSidebarWidth, setRightSidebarWidth] = useState(320);
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
@@ -94,27 +25,202 @@ export default function EventSpacePage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState('all');
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
-
   const [selectedContentIds, setSelectedContentIds] = useState<string[]>([]);
   const [isResizing, setIsResizing] = useState(false);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [activeViewerIndex, setActiveViewerIndex] = useState(0);
-  
+
+  // Dragging refs
   const isDraggingLeft = useRef(false);
   const isDraggingRight = useRef(false);
 
-  // Extract all media items for the viewer
-  const mediaItems: MediaItem[] = mockContent
-    .filter(item => item.type === 'video' || item.type === 'poster' || (item.type === 'email' && (item as any).emailImage))
-    .map((item, idx) => ({
+  // Live Data State
+  const [messages, setMessages] = useState<any[]>([]);
+  const [contentCards, setContentCards] = useState<any[]>([]);
+  const [isChatConnected, setIsChatConnected] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [sessionInfo, setSessionInfo] = useState<{userId: string, sessionId: string} | null>(null);
+  
+  const wsRef = useRef<WebSocket | null>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // TanStack Query Hooks
+  const { data: eventData } = useEvent(id || '');
+  const activeEventName = eventData?.name || "Loading...";
+
+  const { data: historyData } = useChatHistory(sessionInfo?.sessionId || '');
+  const { data: mediaData } = useEventMedia(id || '', sessionInfo?.sessionId || '');
+  const createEventMutation = useCreateEvent();
+
+  useEffect(() => {
+    // Reset state when navigating to a different event
+    setMessages([]);
+    setContentCards([]);
+    if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+    }
+    
+    const auth = getAuth();
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        // Use a deterministic session ID right now for MVP or fetch actual user session
+        // For hackathon: we can use a fixed session per user-event pair
+        const generatedSessionId = `sess_${user.uid}_${id}`.replace(/[^a-zA-Z0-9_]/g, '');
+        setSessionInfo({ userId: user.uid, sessionId: generatedSessionId });
+        setAuthReady(true);
+      } else {
+        navigate('/login');
+      }
+    });
+    return () => unsubscribe();
+  }, [id, navigate]);
+
+  // 2. Fetch Initial History & Media (handled by React Query)
+  useEffect(() => {
+    if (historyData?.messages && messages.length === 0) {
+      const historyMsgs = historyData.messages.map((m: any) => ({
+        role: m.role,
+        text: m.text,
+        mediaRefs: m.media_refs || [],
+        timestamp: new Date(m.timestamp ? m.timestamp + 'Z' : Date.now()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+      })).reverse(); // Inverted descending order
+      setMessages(historyMsgs);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyData]);
+
+  useEffect(() => {
+    if (mediaData?.media_assets && contentCards.length === 0) {
+      setContentCards(mediaData.media_assets);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaData]);
+
+  // 3. WebSocket Connection
+  useEffect(() => {
+    if (!authReady || !sessionInfo || !id) return;
+
+    let ws: WebSocket;
+    let reconnectTimeout: ReturnType<typeof setTimeout>;
+
+    const connectWs = async () => {
+      try {
+        const auth = getAuth();
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) return;
+
+        const wsUrl = `${import.meta.env.VITE_API_URL?.replace('http', 'ws')}/chat/ws/${id}/${sessionInfo.userId}/${sessionInfo.sessionId}?token=${token}`;
+        ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          setIsChatConnected(true);
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data) as WsAgentMessage;
+            if (data.type === 'message') {
+              const newMsg = {
+                role: 'assistant' as const,
+                text: data.text,
+                mediaRefs: data.media_refs || [],
+                timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+              };
+              
+              setMessages(prev => [newMsg, ...prev]);
+
+              // Optimistically append new media assets to the content area
+              if (data.media_refs && data.media_refs.length > 0) {
+                const newCards = data.media_refs.map(ref => ({
+                  id: ref.asset_id,
+                  title: `Generated ${ref.asset_type === 'image' ? 'Image' : 'Video'}`,
+                  asset_type: ref.asset_type,
+                  content_category: ref.asset_type === 'video' ? 'video' : 'poster',
+                  public_url: ref.url,
+                  thumbnail_url: ref.thumbnail_url,
+                  created_at: new Date().toISOString()
+                }));
+                // Filter out any IDs we already have (in case the HTTP GET caught them)
+                setContentCards(prev => {
+                  const existingIds = prev.map(p => p.id);
+                  const uniqueNew = newCards.filter(c => !existingIds.includes(c.id));
+                  return [...uniqueNew, ...prev].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+                });
+              }
+            }
+          } catch (e) {
+            console.error("Failed to parse WS msg", event.data);
+          }
+        };
+
+        ws.onclose = () => {
+          setIsChatConnected(false);
+          // Auto-reconnect
+          reconnectTimeout = setTimeout(connectWs, 3000);
+        };
+      } catch (err) {
+        console.error("WS connect failed", err);
+      }
+    };
+
+    connectWs();
+
+    return () => {
+      clearTimeout(reconnectTimeout);
+      if (ws) {
+        ws.onmessage = null;
+        ws.onclose = null;
+        ws.close();
+      }
+    };
+  }, [authReady, sessionInfo, id]);
+
+  // Handle chat submission
+  const handleChatSubmit = (text: string) => {
+    if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    
+    const userMsg = {
+      role: 'user' as const,
+      text: text,
+      timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
+    };
+    setMessages(prev => [userMsg, ...prev]); // Prepend
+    
+    wsRef.current.send(JSON.stringify({ text }));
+  };
+
+  // Scroll chat to bottom/top on new message
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleCreateEvent = async (eventData: { name: string; description?: string; type?: string }) => {
+    try {
+      const result = await createEventMutation.mutateAsync({
+        name: eventData.name,
+        description: eventData.description,
+        event_type: eventData.type,
+      });
+      setIsModalOpen(false);
+      navigate(`/events/${result.event_id}`);
+    } catch (err) {
+      console.error('Failed to create event:', err);
+    }
+  };
+
+
+  // Format content cards for UI
+  const mediaItems: MediaItem[] = contentCards
+    .filter(item => item.asset_type === 'video' || item.asset_type === 'image')
+    .map((item) => ({
       id: item.id,
-      title: item.title,
-      type: (item.type === 'email' ? 'image' : item.type) as any,
-      image: item.type === 'poster' ? (item as any).image : (item as any).image || (item as any).emailImage,
-      timestamp: item.timestamp,
-      variant: item.type === 'poster' ? (idx % 3 + 1).toString() : undefined,
-      resolution: item.type === 'poster' ? '1024x1024' : item.type === 'video' ? '1920x1080' : '1200x400',
-      isFavorite: item.isFavorite,
+      title: item.title || 'Media Asset',
+      type: item.asset_type === 'video' ? 'video' : 'image',
+      image: item.public_url,
+      timestamp: new Date(item.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+      isFavorite: false,
       isSelected: selectedContentIds.includes(item.id)
     }));
 
@@ -126,8 +232,6 @@ export default function EventSpacePage() {
     }
   };
 
-  const activeEvent = mockEvents.find(e => e.id === id) || mockEvents[0];
-
   const toggleSelect = (contentId: string) => {
     setSelectedContentIds(prev => 
       prev.includes(contentId) 
@@ -138,8 +242,6 @@ export default function EventSpacePage() {
 
   const toggleFavorite = (contentId: string) => {
     console.log("Toggle favorite:", contentId);
-    // In a real app we'd update DB/mockContent state
-    // For now we just log it as mockContent is a constant
   };
 
   const handleMediaClick = (contentId: string) => {
@@ -151,11 +253,31 @@ export default function EventSpacePage() {
     setTimeout(() => setHighlightedId(null), 3000);
   };
 
-  const filteredContent = mockContent.filter(item => {
+  const filteredContent = contentCards.filter(item => {
     if (activeFilter === 'all') return true;
-    if (activeFilter === 'favorites') return item.isFavorite;
-    return item.type === activeFilter.slice(0, -1) || item.type === activeFilter;
+    if (activeFilter === 'favorites') return false; // Not implemented in DB yet
+    
+    const uiTypeMap: Record<string, string[]> = {
+      'poster': ['poster', 'social_post'],
+      'email': ['email'],
+      'video': ['video'],
+      'text': ['text']
+    };
+    
+    // activeFilter might be "posters", so slice(-1)
+    const baseFilter = activeFilter.endsWith('s') ? activeFilter.slice(0, -1) : activeFilter;
+    const allowedTypes = uiTypeMap[baseFilter] || [baseFilter];
+    
+    return allowedTypes.includes(item.content_category);
   });
+
+  // Group content by timestamp
+  const groupedContent = filteredContent.reduce<Record<string, any[]>>((acc, item) => {
+    const time = new Date(item.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    if (!acc[time]) acc[time] = [];
+    acc[time].push(item);
+    return acc;
+  }, {});
 
   // Resizing logic
   useEffect(() => {
@@ -216,20 +338,19 @@ export default function EventSpacePage() {
     e.preventDefault();
   };
 
-  const selectedContentItems = mockContent.filter(item => selectedContentIds.includes(item.id));
 
-  // Group content by timestamp
-  const groupedContent = filteredContent.reduce((acc, item) => {
-    const time = item.timestamp;
-    if (!acc[time]) acc[time] = [];
-    acc[time].push(item);
-    return acc;
-  }, {} as Record<string, typeof mockContent>);
+  const selectedContentItems = contentCards
+    .filter(item => selectedContentIds.includes(item.id))
+    .map(item => ({
+      id: item.id,
+      type: (item.content_category === 'video' ? 'video' : 'poster') as 'poster' | 'video' | 'email',
+      image: item.public_url || item.thumbnail_url
+    }));
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background text-foreground font-geist">
       {/* Navbar */}
-      <Navbar eventName={activeEvent.name} />
+      <Navbar eventName={activeEventName} />
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Left Sidebar */}
@@ -243,7 +364,7 @@ export default function EventSpacePage() {
             setLeftSidebarWidth(!leftSidebarCollapsed ? 64 : 256);
           }}
           onNewEvent={() => setIsModalOpen(true)}
-          activeEventId={activeEvent.id}
+          activeEventId={id!}
         />
 
         {/* Main Content Area */}
@@ -260,7 +381,7 @@ export default function EventSpacePage() {
                 <div className="space-y-20">
                   {Object.entries(groupedContent).map(([time, items]) => (
                     <div key={time} className="space-y-10">
-                      {/* Timestamp Separator - More Prominent */}
+                      {/* Timestamp Separator */}
                       <div className="flex items-center gap-6 px-4">
                         <div className="h-[2px] flex-1 bg-gradient-to-r from-transparent via-white/10 to-white/20" />
                         <span className="text-[11px] font-black text-white/40 uppercase tracking-[0.3em] bg-white/5 border border-white/10 px-4 py-1.5 rounded-full whitespace-nowrap shadow-xl">
@@ -274,20 +395,20 @@ export default function EventSpacePage() {
                           <ContentCard 
                             key={item.id}
                             id={item.id}
-                            title={item.title}
-                            type={item.type}
-                            subject={(item as any).subject}
-                            image={(item as any).image}
-                            content={item.content}
-                            emailImage={(item as any).emailImage}
-                            isFavorite={item.isFavorite}
+                            title={item.title || 'Generated Content'}
+                            type={item.content_category === 'email' ? 'email' : item.content_category === 'video' ? 'video' : 'poster'}
+                            subject={item.subject}
+                            image={item.public_url}
+                            content={item.rich_content}
+                            emailImage={item.content_category === 'email' ? item.public_url : undefined}
+                            isFavorite={false}
                             isActive={highlightedId === item.id}
                             isSelected={selectedContentIds.includes(item.id)}
                             onFavorite={() => toggleFavorite(item.id)}
                             onCopy={() => console.log("Copy content:", item.id)}
                             onDownload={() => console.log("Download asset:", item.id)}
                             onSelect={() => toggleSelect(item.id)}
-                            onOpenViewer={() => openMediaViewer(item.id)}
+                            onOpenViewer={item.asset_type === 'image' || item.asset_type === 'video' ? () => openMediaViewer(item.id) : undefined}
                           />
                         ))}
                       </div>
@@ -322,19 +443,26 @@ export default function EventSpacePage() {
           }}
           selectedContent={selectedContentItems}
           onRemoveSelected={toggleSelect}
+          onSend={handleChatSubmit}
+          connected={isChatConnected}
         >
-          {/* Messages passed via children (simplified pattern) */}
-          <div className="space-y-6">
-            {mockMessages.map((msg, idx) => (
+          <div className="flex flex-col-reverse overflow-y-auto space-y-6 space-y-reverse pb-20 pt-4 px-2">
+            {!isChatConnected && messages.length === 0 && (
+              <div className="text-sm text-center text-muted-foreground animate-pulse">
+                Connecting to Evento Agent...
+              </div>
+            )}
+            {messages.map((msg, idx) => (
               <ChatMessage 
                 key={idx}
                 role={msg.role}
                 text={msg.text}
-                media={msg.media}
+                mediaRefs={msg.mediaRefs}
                 timestamp={msg.timestamp}
                 onMediaClick={handleMediaClick}
               />
             ))}
+            <div ref={chatBottomRef} />
           </div>
         </AiAssistantPanel>
       </div>
@@ -354,12 +482,8 @@ export default function EventSpacePage() {
       <CreateEventModal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        onCreate={(data) => {
-          console.log("New Event Created:", data);
-          setIsModalOpen(false);
-          // In a real app, we'd navigate to the new event:
-          // navigate(`/events/${newId}`);
-        }}
+        onCreate={handleCreateEvent}
+        isCreating={createEventMutation.isPending}
       />
     </div>
   );
@@ -386,3 +510,4 @@ function History({ className }: { className?: string }) {
     </svg>
   );
 }
+
