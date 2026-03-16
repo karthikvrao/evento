@@ -10,26 +10,31 @@ env:
   REGION: us-central1
 
 jobs:
-  # Deploy web app to Cloud Run
+  # Deploy web app to Firebase Hosting
   deploy-web:
     name: Deploy Web App
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: google-github-actions/auth@v2
+      - uses: pnpm/action-setup@v4
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          version: 10
+          run_install: false
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy evento-web \
-            --source apps/web \
-            --project $PROJECT_ID \
-            --region $REGION \
-            --allow-unauthenticated
+      - name: Build Web App
+        run: pnpm --filter web build
+
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.GCP_SA_KEY }}
+          channelId: live
+          projectId: ${{ secrets.GCP_PROJECT_ID }}
+          entryPoint: apps/web
 
   # Deploy agent service to Cloud Run
   deploy-agent-service:
