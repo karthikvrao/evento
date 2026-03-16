@@ -10,50 +10,34 @@ env:
   REGION: us-central1
 
 jobs:
-  # Deploy web app to Cloud Run
+  # Deploy web app to Firebase Hosting
   deploy-web:
     name: Deploy Web App
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: google-github-actions/auth@v2
+      - uses: pnpm/action-setup@v4
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          version: 10
+          run_install: false
 
-      - uses: google-github-actions/setup-gcloud@v2
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy evento-web \
-            --source apps/web \
-            --project $PROJECT_ID \
-            --region $REGION \
-            --allow-unauthenticated
+      - name: Build Web App
+        run: pnpm --filter web build
 
-  # Deploy API service to Cloud Run
-  deploy-api:
-    name: Deploy API Service
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: google-github-actions/auth@v2
+      - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.GCP_SA_KEY }}
+          channelId: live
+          projectId: ${{ secrets.GCP_PROJECT_ID }}
+          entryPoint: apps/web
 
-      - uses: google-github-actions/setup-gcloud@v2
-
-      - name: Deploy to Cloud Run
-        run: |
-          gcloud run deploy evento-api \
-            --source apps/api-service \
-            --project $PROJECT_ID \
-            --region $REGION \
-            --allow-unauthenticated
-
-  # Deploy agent service to Vertex AI Agent Engine
-  deploy-agent:
+  # Deploy agent service to Cloud Run
+  deploy-agent-service:
     name: Deploy Agent Service
     runs-on: ubuntu-latest
     steps:
@@ -65,17 +49,17 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - uses: astral-sh/setup-uv@v6
-
-      - name: Install ADK
-        working-directory: apps/agent-service
-        run: uv sync
-
-      - name: Deploy to Agent Engine
-        working-directory: apps/agent-service
+      - name: Deploy to Cloud Run
         run: |
-          uv run adk deploy agent_engine \
+          gcloud run deploy evento-agent-service \
+            --source apps/agent_service \
             --project $PROJECT_ID \
             --region $REGION \
-            --display_name "Evento Agent" \
-            .
+            --allow-unauthenticated \
+            --set-env-vars "RUNTIME_ENV=production,\
+            GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }},\
+            GOOGLE_CLOUD_LOCATION=$REGION,\
+            GOOGLE_GENAI_USE_VERTEXAI=TRUE,\
+            GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }},\
+            FIREBASE_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},\
+            AGENT_ENGINE_ID=${{ secrets.AGENT_ENGINE_ID }}"

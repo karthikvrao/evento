@@ -1,0 +1,13 @@
+{
+  "source_directories": [
+    "."
+  ],
+  "search_path": [
+    "../../packages"
+  ],
+  "exclude": [
+    ".*/venv/.*",
+    ".*/__tests__/.*",
+    ".*\\.pyi"
+  ]
+}

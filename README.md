@@ -9,21 +9,26 @@ Evento uses a multi-agent architecture powered by Google ADK to generate rich, m
 ## Architecture
 
 ```
-SequentialAgent("ContentPipeline")
-├── TrendAnalyst             → Grounded research via Google Search
-├── ParallelAgent("ContentCreators")
-│   ├── CreativeWriter       → Text/copy generation
-│   └── VisualDesigner       → Image generation (Imagen)
-└── Orchestrator             → Combines all → interleaved output stream
+Orchestrator (LlmAgent, root)
+├── EventInfoGatherer         → multi-turn Q&A, saves event details to session state
+└── ContentGenerationManager  → decides pipeline, drives content creation
+    ├── ResearchAndPlanner    → Google Search grounding + content plan
+    └── ContentGenerator      → fans out to content tools simultaneously
+        ├── MultimodalContentCreator → text + inline images (gemini-2.0-flash-preview-image-generation)
+        └── VideoGenerator           → Veo 5s 1080p teaser → GCS
 ```
 
-| Layer | Tech |
+## Technical Highlights
+
+- **Scalable Multimodal Handling**: Uses GCS Signed URLs and a custom `StorageService` for direct-to-cloud media uploads. This bypasses the overhead of Base64 encoding over WebSockets, ensuring performance for high-resolution images and Veo videos.
+- **Optimized Frontend UX**: Agents return directly renderable media URLs (GCS or local) within their JSON response. This enables the React frontend to display generated content instantly without secondary "fetch artifact" round-trips.
+- **Lean Session State**: Leverages ADK `after_model_callback` to intercept and process generated images. Media is uploaded and replaced with URLs in the final payload, keeping the persistent session state clean and avoiding state bloat.
+- **Modern Auth Architecture**: Utilizes Firebase SDK natively on the frontend for identity management (Sign-up/Login/Google Auth), with a lean FastAPI dependency for ID token verification on the backend.
 |-------|------|
 | Frontend | React + Vite, TanStack Query, Shadcn UI |
-| API Service | Fastify, BetterAuth, Sharp |
-| Agent Service | Python ADK, Gemini models |
-| Storage | Firestore, Google Cloud Storage |
-| Deployment | Cloud Run (web + API), Vertex AI Agent Engine (agents) |
+| Agent Service | FastAPI + Python ADK, Gemini models, Firebase Auth, WebSocket |
+| Storage | Firestore (session index), Google Cloud Storage (media) |
+| Deployment | Cloud Run |
 
 ## Prerequisites
 
@@ -44,24 +49,43 @@ cd evento
 pnpm install
 
 # Install Python dependencies (agent service)
-cd apps/agent-service
-uv sync
-cd ../..
+cd apps/agent_service && uv sync && cd ../..
 ```
 
 ### 2. Environment Setup
 
-Create `.env` files for each service:
-
 ```bash
-# apps/api-service/.env
-PORT=3001
-FRONTEND_URL=http://localhost:5173
-
-# apps/agent-service/.env
-GOOGLE_CLOUD_PROJECT=<your-project-id>
-GOOGLE_CLOUD_LOCATION=us-central1
+# apps/agent_service/app/.env  (canonical per ADK docs — .env lives inside the package)
+cp apps/agent_service/app/.env.example apps/agent_service/app/.env
+# Edit app/.env and fill in your credentials
 ```
+
+Key vars:
+```
+GOOGLE_GENAI_USE_VERTEXAI=FALSE   # TRUE for Vertex AI, FALSE for AI Studio
+GOOGLE_API_KEY=<your-key>         # Google AI Studio key (local dev only)
+GOOGLE_CLOUD_PROJECT=<project-id>
+GOOGLE_CLOUD_LOCATION=us-central1
+GCS_BUCKET_NAME=<your-bucket>
+# GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # ADC via service account
+```
+
+#### Vertex AI Session Service (optional, for persistent sessions)
+
+To use `VertexAiSessionService` instead of the default `InMemorySessionService`:
+
+1. **Create an Agent Engine instance** (one-time):
+   ```python
+   import vertexai
+   client = vertexai.Client(project="YOUR_PROJECT_ID", location="us-central1")
+   agent_engine = client.agent_engines.create()
+   print(agent_engine.api_resource.name.split("/")[-1])  # This is your AGENT_ENGINE_ID
+   ```
+2. **Set these env vars** in `apps/agent_service/app/.env`:
+   ```
+   RUNTIME_ENV=production
+   AGENT_ENGINE_ID=<id-from-step-1>
+   ```
 
 ### 3. Run Development Servers
 
@@ -70,14 +94,15 @@ GOOGLE_CLOUD_LOCATION=us-central1
 pnpm dev or turbo dev
 
 # Or start individually:
+# Agent Service — ADK dev UI (agents only, no auth)
+cd apps/agent_service && adk web
+# → http://localhost:8000, select "app"
+
+# Or terminal chat:
+cd apps/agent_service && adk run app
+
 # Frontend (port 5173)
 cd apps/web && pnpm dev
-
-# API Service (port 3001)
-cd apps/api-service && pnpm dev
-
-# Agent Service (ADK dev server)
-cd apps/agent-service && uv run adk web
 ```
 
 ### 4. Verify Installation
@@ -86,11 +111,9 @@ cd apps/agent-service && uv run adk web
 # Check web app
 curl http://localhost:5173
 
-# Check API health
-curl http://localhost:3001/health
-
-# Verify ADK is installed
-cd apps/agent-service && uv run python -c "import google.adk; print('ADK', google.adk.__version__)"
+# Verify ADK and agent tree load cleanly
+cd apps/agent_service
+.venv/bin/python -c "from app.agent import root_agent; print('✅', root_agent.name)"
 ```
 
 ## Project Structure
@@ -98,54 +121,59 @@ cd apps/agent-service && uv run python -c "import google.adk; print('ADK', googl
 ```
 evento/
 ├── apps/
-│   ├── web/                    # React + Vite frontend
-│   ├── api-service/            # Fastify API (auth, image processing)
-│   └── agent-service/          # Python ADK multi-agent service
-│       ├── agents/
-│       │   ├── pipeline.py     # SequentialAgent + ParallelAgent wiring
-│       │   ├── orchestrator.py # Combines outputs → interleaved stream
-│       │   ├── creative_writer.py
-│       │   ├── visual_designer.py
-│       │   └── trend_analyst.py
-│       ├── tools/              # Shared tools (Search, Imagen, GCS)
-│       ├── main.py             # ADK entry point (root_agent)
-│       └── package.json        # Turborepo integration
-├── packages/                   # Shared libraries (types, utils)
-├── .agents/skills/             # Coding agent skills (11 installed)
-├── docs/                       # Project documentation
-├── turbo.json                  # Turborepo task pipeline
-├── pnpm-workspace.yaml         # pnpm workspace config
-└── AGENTS.md                   # Agent architecture & conventions
+│   ├── web/                       # React + Vite frontend
+│   └── agent_service/             # Python FastAPI + ADK multi-agent service
+│       ├── app/                   # ADK-discoverable package
+│       │   ├── __init__.py
+│       │   ├── agent.py           # root_agent = orchestrator; loads .env
+│       │   ├── .env               # env vars (inside package per ADK docs)
+│       │   ├── agents/            # All LlmAgent definitions
+│       │   └── tools/             # Shared tools (Search, GCS, etc.)
+│       ├── main.py                # FastAPI app (Phase 2)
+│       ├── api/                   # FastAPI routes (Phase 2)
+│       ├── services/              # GCS, Firestore, session services (Phase 2+)
+│       └── pyproject.toml
+├── packages/                      # Shared libraries (types, utils)
+├── .agents/skills/                # Coding agent skills
+├── docs/                          # Project documentation
+├── turbo.json
+├── pnpm-workspace.yaml
+└── AGENTS.md
 ```
 
 ## Deployment
 
-### Agent Service → Vertex AI Agent Engine
+### Agent Service → Cloud Run
 
 ```bash
-cd apps/agent-service
-adk deploy agent_engine \
-  --project=$PROJECT_ID \
+cd apps/agent_service
+gcloud run deploy evento-agent-svc \
+  --source . \
   --region=us-central1 \
-  --display_name="Evento Agent" \
-  .
+  --set-env-vars SESSION_SERVICE=vertexai,GOOGLE_CLOUD_PROJECT=$PROJECT_ID
 ```
 
-### Web + API → Cloud Run
+### Web → Cloud Run
 
 ```bash
 # Deploy via gcloud (or use GitHub Actions CI/CD)
 gcloud run deploy evento-web --source apps/web
-gcloud run deploy evento-api --source apps/api-service
 ```
 
 ## Tech Stack
 
 - **Monorepo:** pnpm workspaces + Turborepo
 - **Frontend:** React, Vite, TanStack Query, Shadcn UI
-- **API:** Fastify, BetterAuth, Sharp
-- **Agents:** Google ADK (Python), Gemini 2.0 Flash/Pro
-- **Cloud:** Google Cloud Run, Vertex AI Agent Engine, Firestore, GCS
+- **Agents:** Google ADK (Python), Gemini 2.0 Flash-001 / gemini-2.0-flash-preview-image-generation / Veo
+- **Cloud:** Cloud Run, Vertex AI Session Service, Firestore, GCS, Firebase Auth
+
+## Security & Disclaimer (Hackathon Mode) ⚠️
+
+> [!IMPORTANT]
+> This project is configured for rapid prototyping and hackathon demonstration. 
+> 
+> **Public GCS Storage**: Generated media assets are served via public GCS URLs (`https://storage.googleapis.com/...`). This requires the bucket to have `allUsers:Storage Object Viewer` permissions. For a production environment, you should transition to **Signed URLs** or **Firebase Hosting with Restricted Access**.
+
 
 ## License
 

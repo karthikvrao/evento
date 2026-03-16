@@ -1,6 +1,36 @@
 {
   "version": 1,
   "skills": {
+    "adk-cheatsheet": {
+      "source": "google/adk-docs",
+      "sourceType": "github",
+      "computedHash": "a38c60cac8bc202390bbf59e438a29ebd679ead13625f5d6526520a47d333057"
+    },
+    "adk-deploy-guide": {
+      "source": "google/adk-docs",
+      "sourceType": "github",
+      "computedHash": "f732bc0bc4ee7f6860f5dc0a4b746fec327c48dd2a94c56e2b6b3b2e6fa69b35"
+    },
+    "adk-dev-guide": {
+      "source": "google/adk-docs",
+      "sourceType": "github",
+      "computedHash": "e3ab9a05dd09d4cd9f0d9196d0cfc640f0e69a7f83d330572c62997776982892"
+    },
+    "adk-eval-guide": {
+      "source": "google/adk-docs",
+      "sourceType": "github",
+      "computedHash": "ceb7dbcee90b76e5a8ebd4392dbeea4abbfcf55a4aa4eb34a3aa380f94247ea1"
+    },
+    "adk-observability-guide": {
+      "source": "google/adk-docs",
+      "sourceType": "github",
+      "computedHash": "64e8b9c676d63af232304369d4e543761ffd62d35fed47d3adba67b916e811c2"
+    },
+    "adk-scaffold": {
+      "source": "google/adk-docs",
+      "sourceType": "github",
+      "computedHash": "04008a4236754bf23eb132422bf2c04a8c6dbedfeb78897e5b49237b698c701a"
+    },
     "api-design-principles": {
       "source": "wshobson/agents",
       "sourceType": "github",
@@ -36,10 +66,20 @@
       "sourceType": "github",
       "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
     },
+    "gemini-live-api-dev": {
+      "source": "google-gemini/gemini-skills",
+      "sourceType": "github",
+      "computedHash": "cf4ef3b9c9a331f0507357d78fb570b4bdee3010dfd2fb40b3ee3b25269fd3c1"
+    },
     "git-commit": {
       "source": "github/awesome-copilot",
       "sourceType": "github",
       "computedHash": "2607fc60629b82b257136dd2a7a373f0a4466c0b49df7746d845d59313c99b21"
+    },
+    "mermaid-diagrams": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "computedHash": "6d36e69adad781f106a2fb4b19ebc22bf0c211babdc0d1ae5822fa65abb48bd8"
     },
     "organization-best-practices": {
       "source": "better-auth/skills",
