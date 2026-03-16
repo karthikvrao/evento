@@ -55,4 +55,11 @@ jobs:
             --source apps/agent_service \
             --project $PROJECT_ID \
             --region $REGION \
-            --allow-unauthenticated
+            --allow-unauthenticated \
+            --set-env-vars "RUNTIME_ENV=production,\
+            GOOGLE_CLOUD_PROJECT=${{ secrets.GCP_PROJECT_ID }},\
+            GOOGLE_CLOUD_LOCATION=$REGION,\
+            GOOGLE_GENAI_USE_VERTEXAI=TRUE,\
+            GCS_BUCKET_NAME=${{ vars.GCS_BUCKET_NAME }},\
+            FIREBASE_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},\
+            AGENT_ENGINE_ID=${{ vars.AGENT_ENGINE_ID }}"
