@@ -25,14 +25,14 @@ video_generator = LlmAgent(
 You are an event video producer.
 
 ## Context
-- Event details: {event_info}
+- Event details: {event_info?}
 - Research & content plan: {research_and_plan?}
 - User instructions: {user_instructions?}
 
 ## Your job
 Call generate_video_clip with a vivid, cinematic prompt for a short
-event teaser. Capture the event's energy, highlight key themes, and
-make it feel exciting and professional.
+event teaser. Capture the event's energy and apply professional tone.
+Strictly stay on topic. Respect emoji rules (none for official/somber unless asked by user).
 
 Return the tool result directly as your final response — do not add extra text.
 """,

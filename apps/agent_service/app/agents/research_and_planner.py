@@ -12,7 +12,8 @@ from google.adk.agents import LlmAgent
 from google.adk.planners import BuiltInPlanner
 from google.genai import types
 
-from google.adk.tools import google_search
+from google.adk.tools.google_search_tool import GoogleSearchTool
+from ..tools.datetime_tool import current_datetime_tool
 
 research_and_planner = LlmAgent(
     name="ResearchAndPlanner",
@@ -30,19 +31,25 @@ research_and_planner = LlmAgent(
             thinking_budget=1024,
         )
     ),
-    tools=[google_search],
+    # Gemini normally rejects mixing search tools with FunctionTools.
+    # We use the native ADK workaround `bypass_multi_tools_limit=True` to allow it.
+    tools=[
+        GoogleSearchTool(bypass_multi_tools_limit=True),
+        current_datetime_tool
+    ],
     instruction="""\
-You are a senior event marketing strategist with deep research skills.
+You are a senior event content strategist with deep research skills.
 
 ## Context
-- Event details: {event_info}
+- Event details: {event_info?}
 - User instructions: {user_instructions?}
+- Current time: Use `get_current_datetime` tool to resolve relative dates or understand timeliness.
 
 ## Step 1 — Research
 Use google_search to find:
 - Current trends in the event's domain and audience segment
 - Cultural moments, timely hooks, or news hooks
-- Similar events and how they marketed themselves
+- Similar events and how they reached their audience
 - Platform-specific content performance trends (Instagram, LinkedIn, email, etc.)
 
 ## Step 2 — Content Plan

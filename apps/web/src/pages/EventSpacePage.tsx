@@ -10,8 +10,8 @@ import { ContentCard } from '../components/eventspace/ContentCard';
 import { ChatMessage } from '../components/eventspace/ChatMessage';
 import { MediaViewerModal } from '../components/modals/MediaViewerModal';
 import type { MediaItem } from '../components/modals/MediaViewerModal';
-import type { WsAgentMessage } from '../types/chat';
-import { useEvent, useChatHistory, useEventMedia, useCreateEvent } from '../hooks/useEvents';
+import { useEvent, useCreateEvent } from '../hooks/useEvents';
+import { useEventSession } from '../hooks/useEventSession';
 
 export default function EventSpacePage() {
   const { id } = useParams<{ id: string }>();
@@ -34,167 +34,74 @@ export default function EventSpacePage() {
   const isDraggingLeft = useRef(false);
   const isDraggingRight = useRef(false);
 
-  // Live Data State
-  const [messages, setMessages] = useState<any[]>([]);
-  const [contentCards, setContentCards] = useState<any[]>([]);
-  const [isChatConnected, setIsChatConnected] = useState(false);
-  const [authReady, setAuthReady] = useState(false);
-  const [sessionInfo, setSessionInfo] = useState<{userId: string, sessionId: string} | null>(null);
-  
-  const wsRef = useRef<WebSocket | null>(null);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  // 1. Session & Live Data Management
+  const {
+    messages,
+    contentCards,
+    isChatConnected,
+    isAgentThinking,
+    handleSendMessage
+  } = useEventSession(id || '');
 
-  // TanStack Query Hooks
+  // 2. TanStack Query Hooks (static event info)
   const { data: eventData } = useEvent(id || '');
   const activeEventName = eventData?.name || "Loading...";
 
-  const { data: historyData } = useChatHistory(sessionInfo?.sessionId || '');
-  const { data: mediaData } = useEventMedia(id || '', sessionInfo?.sessionId || '');
   const createEventMutation = useCreateEvent();
 
+  // Navigation Logic (Auth redirection)
   useEffect(() => {
-    // Reset state when navigating to a different event
-    setMessages([]);
-    setContentCards([]);
-    if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-    }
-    
     const auth = getAuth();
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        // Use a deterministic session ID right now for MVP or fetch actual user session
-        // For hackathon: we can use a fixed session per user-event pair
-        const generatedSessionId = `sess_${user.uid}_${id}`.replace(/[^a-zA-Z0-9_]/g, '');
-        setSessionInfo({ userId: user.uid, sessionId: generatedSessionId });
-        setAuthReady(true);
-      } else {
+      if (!user) {
         navigate('/login');
       }
     });
     return () => unsubscribe();
-  }, [id, navigate]);
-
-  // 2. Fetch Initial History & Media (handled by React Query)
-  useEffect(() => {
-    if (historyData?.messages && messages.length === 0) {
-      const historyMsgs = historyData.messages.map((m: any) => ({
-        role: m.role,
-        text: m.text,
-        mediaRefs: m.media_refs || [],
-        timestamp: new Date(m.timestamp ? m.timestamp + 'Z' : Date.now()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-      })).reverse(); // Inverted descending order
-      setMessages(historyMsgs);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historyData]);
-
-  useEffect(() => {
-    if (mediaData?.media_assets && contentCards.length === 0) {
-      setContentCards(mediaData.media_assets);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mediaData]);
-
-  // 3. WebSocket Connection
-  useEffect(() => {
-    if (!authReady || !sessionInfo || !id) return;
-
-    let ws: WebSocket;
-    let reconnectTimeout: ReturnType<typeof setTimeout>;
-
-    const connectWs = async () => {
-      try {
-        const auth = getAuth();
-        const token = await auth.currentUser?.getIdToken();
-        if (!token) return;
-
-        const wsUrl = `${import.meta.env.VITE_API_URL?.replace('http', 'ws')}/chat/ws/${id}/${sessionInfo.userId}/${sessionInfo.sessionId}?token=${token}`;
-        ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-          setIsChatConnected(true);
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data) as WsAgentMessage;
-            if (data.type === 'message') {
-              const newMsg = {
-                role: 'assistant' as const,
-                text: data.text,
-                mediaRefs: data.media_refs || [],
-                timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-              };
-              
-              setMessages(prev => [newMsg, ...prev]);
-
-              // Optimistically append new media assets to the content area
-              if (data.media_refs && data.media_refs.length > 0) {
-                const newCards = data.media_refs.map(ref => ({
-                  id: ref.asset_id,
-                  title: `Generated ${ref.asset_type === 'image' ? 'Image' : 'Video'}`,
-                  asset_type: ref.asset_type,
-                  content_category: ref.asset_type === 'video' ? 'video' : 'poster',
-                  public_url: ref.url,
-                  thumbnail_url: ref.thumbnail_url,
-                  created_at: new Date().toISOString()
-                }));
-                // Filter out any IDs we already have (in case the HTTP GET caught them)
-                setContentCards(prev => {
-                  const existingIds = prev.map(p => p.id);
-                  const uniqueNew = newCards.filter(c => !existingIds.includes(c.id));
-                  return [...uniqueNew, ...prev].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-                });
-              }
-            }
-          } catch (e) {
-            console.error("Failed to parse WS msg", event.data);
-          }
-        };
-
-        ws.onclose = () => {
-          setIsChatConnected(false);
-          // Auto-reconnect
-          reconnectTimeout = setTimeout(connectWs, 3000);
-        };
-      } catch (err) {
-        console.error("WS connect failed", err);
-      }
-    };
-
-    connectWs();
-
-    return () => {
-      clearTimeout(reconnectTimeout);
-      if (ws) {
-        ws.onmessage = null;
-        ws.onclose = null;
-        ws.close();
-      }
-    };
-  }, [authReady, sessionInfo, id]);
+  }, [navigate]);
 
   // Handle chat submission
   const handleChatSubmit = (text: string) => {
-    if (!text.trim() || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-    
-    const userMsg = {
-      role: 'user' as const,
-      text: text,
-      timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-    };
-    setMessages(prev => [userMsg, ...prev]); // Prepend
-    
-    wsRef.current.send(JSON.stringify({ text }));
+    handleSendMessage(text);
   };
 
-  // Scroll chat to bottom/top on new message
+  // Auto-scroll chat handled by AiAssistantPanel's useEffect
+
+  // 4. Auto-scroll main content when new assets arrive
+  const mainContentRef = useRef<HTMLDivElement>(null);
+  const isMainScrolledToBottom = useRef(true);
+
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const container = mainContentRef.current;
+    if (!container) return;
+    const inner = container.firstElementChild;
+    if (!inner) return;
+
+    const handleScroll = () => {
+      isMainScrolledToBottom.current = container.scrollHeight - container.scrollTop <= container.clientHeight + 200;
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (isMainScrolledToBottom.current) {
+        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+      }
+    });
+
+    resizeObserver.observe(inner);
+    resizeObserver.observe(container);
+
+    // Initial check
+    if (isMainScrolledToBottom.current) {
+      container.scrollTop = container.scrollHeight;
+    }
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   const handleCreateEvent = async (eventData: { name: string; description?: string; type?: string }) => {
     try {
@@ -368,7 +275,7 @@ export default function EventSpacePage() {
         />
 
         {/* Main Content Area */}
-        <main className="flex-1 flex flex-col overflow-hidden bg-[#0d0f12]">
+        <main ref={mainContentRef} className="flex-1 overflow-y-auto bg-background flex flex-col relative custom-scrollbar">
           {/* Secondary Filter Bar */}
           <FilterBar 
             activeFilter={activeFilter}
@@ -378,8 +285,10 @@ export default function EventSpacePage() {
           <div className="flex-1 overflow-y-auto p-4 md:p-12 custom-scrollbar">
             <div className="max-w-[1400px] mx-auto">
               {filteredContent.length > 0 ? (
-                <div className="space-y-20">
-                  {Object.entries(groupedContent).map(([time, items]) => (
+                <div className="flex flex-col space-y-20">
+                  {Object.entries(groupedContent)
+                    .sort(([timeA], [timeB]) => timeA.localeCompare(timeB)) // Chronological
+                    .map(([time, items]) => (
                     <div key={time} className="space-y-10">
                       {/* Timestamp Separator */}
                       <div className="flex items-center gap-6 px-4">
@@ -446,15 +355,22 @@ export default function EventSpacePage() {
           onSend={handleChatSubmit}
           connected={isChatConnected}
         >
-          <div className="flex flex-col-reverse overflow-y-auto space-y-6 space-y-reverse pb-20 pt-4 px-2">
-            {!isChatConnected && messages.length === 0 && (
-              <div className="text-sm text-center text-muted-foreground animate-pulse">
-                Connecting to Evento Agent...
+          <>
+            {/* Typing / thinking indicator — shown while agent generates images */}
+            {isAgentThinking && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-accent/50 border border-border/20 max-w-[85%] mr-auto shadow-sm">
+                <span className="text-xs text-muted-foreground">Generating content</span>
+                <span className="flex gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:300ms]" />
+                </span>
               </div>
             )}
-            {messages.map((msg, idx) => (
+            {/* Map messages backwards so the newest is first in the DOM, pushing it natively to the bottom of the flex-col-reverse panel */}
+            {messages.slice().reverse().map((msg, idx) => (
               <ChatMessage 
-                key={idx}
+                key={`msg-${messages.length - 1 - idx}`}
                 role={msg.role}
                 text={msg.text}
                 mediaRefs={msg.mediaRefs}
@@ -462,8 +378,12 @@ export default function EventSpacePage() {
                 onMediaClick={handleMediaClick}
               />
             ))}
-            <div ref={chatBottomRef} />
-          </div>
+            {!isChatConnected && messages.length === 0 && (
+              <div className="text-sm text-center text-muted-foreground animate-pulse py-10">
+                Connecting to Evento Agent...
+              </div>
+            )}
+          </>
         </AiAssistantPanel>
       </div>
 

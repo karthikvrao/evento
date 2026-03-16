@@ -3,16 +3,17 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Send, 
-  Paperclip,
   Sparkles,
   Circle,
   X,
   Video,
   FileText,
-  ImageIcon
+  ImageIcon,
+  Plus
 } from 'lucide-react';
+import { useRef } from 'react';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
+import { Textarea } from '../ui/textarea';
 import { cn } from '../../lib/utils';
 
 import { 
@@ -48,11 +49,72 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
   connected = true
 }) => {
   const [input, setInput] = useState('');
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    if (attachments.length + files.length > 5) {
+      alert("You can only attach up to 5 items.");
+      return;
+    }
+
+    const newAttachments = [...attachments];
+    
+    for (const file of files) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert(`${file.name} is too large. Max size is 5MB.`);
+        continue;
+      }
+
+      const isImage = file.type.startsWith('image/');
+      const isPdf = file.type === 'application/pdf';
+
+      if (!isImage && !isPdf) {
+        alert(`${file.name} is not a supported file type. Only images and PDFs are allowed.`);
+        continue;
+      }
+
+      const isDuplicate = attachments.some(a => a.name === file.name && a.file?.size === file.size);
+      if (isDuplicate) {
+        continue;
+      }
+
+      const id = Math.random().toString(36).substr(2, 9);
+      const attachment: any = {
+        id,
+        name: file.name,
+        type: isImage ? 'image' : 'pdf',
+        file: file
+      };
+
+      if (isImage) {
+        attachment.preview = URL.createObjectURL(file);
+      }
+
+      newAttachments.push(attachment);
+    }
+
+    setAttachments(newAttachments);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+  const removeAttachment = (id: string) => {
+    setAttachments(prev => {
+      const filtered = prev.filter(a => a.id !== id);
+      // Revoke object URL to avoid memory leaks
+      const removed = prev.find(a => a.id === id);
+      if (removed?.preview) URL.revokeObjectURL(removed.preview);
+      return filtered;
+    });
+  };
 
   const handleSubmit = () => {
     if (input.trim() && onSend) {
       onSend(input);
       setInput('');
+      setAttachments([]);
     }
   };
 
@@ -118,10 +180,10 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
         </div>
 
         {/* Message Thread */}
-        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar flex flex-col-reverse">
+        <div className="flex-1 overflow-y-auto p-4 pb-6 custom-scrollbar flex flex-col-reverse gap-6">
           {isCollapsed ? null : (
             children || (
-              <div className="text-sm text-muted-foreground italic text-center py-10 w-full h-full flex items-center justify-center">
+              <div className="text-sm text-muted-foreground italic text-center py-10 w-full flex items-center justify-center">
                 Waiting for connection...
               </div>
             )
@@ -132,26 +194,61 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
         {!isCollapsed && (
           <div className="p-4 border-t border-border/40 bg-background/50">
             {/* Selected Content Thumbnails */}
-            {selectedContent.length > 0 && (
+            {/* Selected Content & Local Attachments */}
+            {(selectedContent.length > 0 || attachments.length > 0) && (
               <div className="flex flex-wrap gap-2 mb-3 max-h-32 overflow-y-auto custom-scrollbar p-1">
+                {/* Apps Content */}
                 {selectedContent.map((item) => (
                   <div key={item.id} className="relative group/thumb">
-                    <div className="w-12 h-12 rounded-lg overflow-hidden border border-border bg-accent/20 flex items-center justify-center">
-                      {item.type === 'email' && <FileText className="h-5 w-5 text-muted-foreground" />}
-                      {item.type === 'poster' && (
-                        item.image ? <img src={item.image || item.emailImage} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                      )}
-                      {item.type === 'video' && (
-                        <div className="relative w-full h-full flex items-center justify-center">
-                          {item.image ? <img src={item.image} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" /> : null}
-                          <Video className="h-4 w-4 text-white drop-shadow-md z-10" />
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="w-12 h-12 rounded-lg overflow-hidden border border-border bg-accent/20 flex items-center justify-center">
+                          {item.type === 'email' && <FileText className="h-5 w-5 text-muted-foreground" />}
+                          {item.type === 'poster' && (
+                            item.image ? <img src={item.image || item.emailImage} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          {item.type === 'video' && (
+                            <div className="relative w-full h-full flex items-center justify-center">
+                              {item.image ? <img src={item.image} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" /> : null}
+                              <Video className="h-4 w-4 text-white drop-shadow-md z-10" />
+                            </div>
+                          )}
+                          {item.type === 'text' && <FileText className="h-5 w-5 text-muted-foreground" />}
                         </div>
-                      )}
-                      {item.type === 'text' && <FileText className="h-5 w-5 text-muted-foreground" />}
-                    </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="bg-card border-border/50 text-[10px] font-medium max-w-[200px] break-all">
+                        {item.title || item.type}
+                      </TooltipContent>
+                    </Tooltip>
                     <button 
                       onClick={() => onRemoveSelected?.(item.id)}
-                      className="absolute -top-1.5 -right-1.5 bg-black/80 text-white rounded-full p-0.5 border border-white/20 shadow-lg opacity-0 group-hover/thumb:opacity-100 transition-opacity"
+                      className="absolute -top-1.5 -right-1.5 bg-black/80 text-white rounded-full p-0.5 border border-white/20 shadow-lg opacity-0 group-hover/thumb:opacity-100 transition-opacity z-10"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                
+                {/* Local File Attachments */}
+                {attachments.map((file) => (
+                  <div key={file.id} className="relative group/thumb">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="w-12 h-12 rounded-lg overflow-hidden border border-border bg-accent/20 flex items-center justify-center">
+                          {file.type === 'image' && file.preview ? (
+                            <img src={file.preview} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            file.type === 'image' ? <ImageIcon className="h-4 w-4 text-muted-foreground" /> : <FileText className="h-5 w-5 text-red-400" />
+                          )}
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="bg-card border-border/50 text-[10px] font-medium max-w-[200px] break-all">
+                        {file.name}
+                      </TooltipContent>
+                    </Tooltip>
+                    <button 
+                      onClick={() => removeAttachment(file.id)}
+                      className="absolute -top-1.5 -right-1.5 bg-black/80 text-white rounded-full p-0.5 border border-white/20 shadow-lg opacity-0 group-hover/thumb:opacity-100 transition-opacity z-10"
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -161,28 +258,54 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
             )}
 
             <div className="relative group">
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="absolute left-1 top-1/2 -translate-y-1/2 h-8 w-8 text-muted-foreground hover:text-primary transition-colors hover:bg-primary/10 rounded-full"
-                disabled={!connected}
-              >
-                <Paperclip className="h-4 w-4" />
-              </Button>
-              <Input 
+              <input 
+                type="file" 
+                multiple 
+                accept="image/*,.pdf" 
+                className="hidden" 
+                ref={fileInputRef}
+                onChange={handleFileChange}
+              />
+              <Textarea 
                 placeholder={connected ? "Type a request..." : "Connecting..."}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 disabled={!connected}
-                className="pl-10 pr-12 h-11 bg-accent/20 border-border/40 focus:border-primary/50 transition-all rounded-xl text-sm"
+                rows={1}
+                className="pl-10 pr-12 min-h-[44px] max-h-32 py-3 bg-accent/20 border-border/40 focus:border-primary/50 transition-all rounded-xl text-sm resize-none custom-scrollbar"
               />
+              <div 
+                className="absolute left-1 bottom-1.5 z-30"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
+              >
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      type="button"
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-8 w-8 text-muted-foreground hover:text-primary transition-colors hover:bg-primary/10 rounded-full"
+                      disabled={!connected}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="bg-card border-border/50 text-xs font-medium">
+                    Add files (image or pdf)
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <Button 
+                type="button"
                 size="icon" 
                 onClick={handleSubmit}
                 disabled={!connected || !input.trim()}
                 className={cn(
-                  "absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 rounded-full transition-all duration-300",
+                  "absolute right-1 bottom-1.5 h-8 w-8 rounded-full transition-all duration-300 z-30",
                   input.trim() ? "bg-primary text-white shadow-md scale-100 opacity-100" : "bg-muted-foreground/20 text-muted-foreground scale-90 opacity-50"
                 )}
               >

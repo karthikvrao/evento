@@ -169,3 +169,40 @@ async def get_event_media(
             detail="Failed to load media assets",
         )
 
+
+@router.get("/events/{event_id}/session")
+async def get_event_session(
+    event_id: str,
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Return the session_id associated with an event for the authenticated user."""
+    user_id = user["uid"]
+
+    try:
+        event_dict = await firestore_service.get_event_by_id(event_id)
+        if not event_dict or event_dict.get("created_by") != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to view this event",
+            )
+
+        session_record = await firestore_service.get_session_by_event_id(event_id)
+        if not session_record:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="No session found for this event",
+            )
+
+        return {
+            "session_id": session_record["session_id"],
+            "user_id": session_record["user_id"],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch session for event {event_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load session info",
+        )
+

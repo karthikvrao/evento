@@ -1,9 +1,10 @@
 // Server → client
 export interface WsAgentMessage {
-  type: 'message';
-  author: string;
-  text: string;                      // Prose (markdown-renderable)
+  type: 'message' | 'thinking' | 'error' | 'state_update';
+  author?: string;
+  text?: string;                     // Prose (markdown-renderable)
   media_refs?: MediaRef[];           // Linked to content cards via asset_id
+  event_info?: any;                  // Used for state_update
 }
 
 export interface MediaRef {

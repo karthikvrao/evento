@@ -3,7 +3,7 @@
 > **Hackathon:** [Gemini Live Agent Challenge](https://geminiliveagentchallenge.devpost.com/)
 > **Category:** Creative Storyteller ✍️ – Multimodal Storytelling with Interleaved Output
 > **Architecture:** Monorepo — React frontend + Python FastAPI/ADK agent service
-> **Goal:** AI-powered event content creation app that weaves text, images, audio, and video in a single cohesive output stream.
+> **Goal:** AI-powered event content creation app (invites, posts, posters) for any event (meetups, conferences, birthdays, etc.).
 
 ## 1. Hackathon Context
 
@@ -42,9 +42,9 @@ Orchestrator (LlmAgent, root)
 | `Orchestrator` | LlmAgent | Root agent — greets users, routes to sub-agents |
 | `EventInfoGatherer` | LlmAgent | Multi-turn Q&A, writes `event_info` to session state |
 | `ContentGenerationManager` | LlmAgent | Decides research→generate or generate-only path |
-| `ResearchAndPlanner` | LlmAgent + BuiltInPlanner | Google Search grounding + content plan |
+| `ResearchAndPlanner` | LlmAgent + BuiltInPlanner | Google Search grounding + content creation plan |
 | `ContentGenerator` | LlmAgent | Fans out to content tools simultaneously |
-| `MultimodalContentCreator` | LlmAgent | Interleaved text + images (social posts, emails, posters) |
+| `MultimodalContentCreator` | LlmAgent | Interleaved text + images (invites, social posts, posters) |
 | `VideoGenerator` | LlmAgent + FunctionTool | Short video teasers via Veo API → GCS |
 
 **Key ADK patterns:**

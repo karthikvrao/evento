@@ -11,42 +11,40 @@ ResearchAndPlanner and ContentGenerator are both AgentTools.
 
 from google.adk.agents import LlmAgent
 from google.adk.tools.agent_tool import AgentTool
+from google.genai import types as genai_types
 
 from .research_and_planner import research_and_planner
 from .content_generator import content_generator
+from .models import FinalResponse
 
 content_generation_manager = LlmAgent(
     name="ContentGenerationManager",
+    # Upgraded from gemini-2.5-flash-lite: needs a stronger model to reliably
+    # invoke tool calls rather than generating content text directly.
     model="gemini-2.5-flash",
     description=(
         "Manages the content creation pipeline. Decides whether to run "
         "research and planning before generating content, or to call "
         "ContentGenerator directly for targeted requests."
     ),
+    # output_schema enforces strict JSON structure via Gemini's Controlled Generation.
+    output_schema=FinalResponse,
+    generate_content_config=genai_types.GenerateContentConfig(
+        response_mime_type="application/json"
+    ),
+    # Prevent the agent from escalating back to the Orchestrator unexpectedly.
+    disallow_transfer_to_parent=True,
     instruction="""\
-You are the content production lead for Evento.
+You are a content production coordinator. You have TWO tools: ResearchAndPlanner and ContentGenerator.
 
-## Context available in state
-- Event details: {event_info}
-- User instructions: {user_instructions?}
-- Previous research & plan (if already run): {research_and_plan?}
+## Step 1 — Research (conditional)
+Call `ResearchAndPlanner` ONLY if `research_and_plan` is currently empty or missing from the state.
 
-## Pipeline decision
+## Step 2 — Generate (MANDATORY)
+Always call `ContentGenerator` with the full user request. You MUST NOT write event content (emails, posts, etc.) yourself.
 
-**Call ResearchAndPlanner FIRST when:**
-- This is a fresh content campaign or a new event
-- The user hasn't given specific creative direction
-- There is no existing research_and_plan in state
-- There is major change in event info or user specifies major change in creative direction
-
-**Skip to ContentGenerator directly when:**
-- The user requests targeted edits ("make it shorter", "change the tone")
-- The user explicitly says "skip research" or "just generate"
-- A research_and_plan already exists in state and the request is incremental
-
-## After content is delivered
-Present ContentGenerator's synthesised output clearly and warmly.
-Always offer to refine, adjust, or regenerate any piece of content.
+## Step 3 — Return result
+Return the `ContentGenerator` result VERBATIM. Do not rephrase, summarize, or add extra text.
 """,
     tools=[
         AgentTool(agent=research_and_planner),

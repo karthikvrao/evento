@@ -67,7 +67,7 @@ export const eventKeys = {
   list: (page: number, pageSize: number) => [...eventKeys.all, 'list', page, pageSize] as const,
   detail: (id: string) => [...eventKeys.all, 'detail', id] as const,
   media: (id: string, sessionId?: string) => [...eventKeys.all, 'media', id, sessionId] as const,
-  chat: (sessionId: string) => ['chat', sessionId] as const,
+  chat: (sessionId?: string) => ['chat', sessionId] as const,
 };
 
 // ── Hooks ──────────────────────────────────────────────────────────────────
@@ -108,17 +108,17 @@ export function useEventMedia(eventId: string, sessionId?: string) {
       }
       return apiFetch<{ media_assets: any[] }>(path);
     },
-    enabled: !!eventId,
+    enabled: !!eventId && !!sessionId,
   });
 }
 
 /**
  * Fetch chat history for a session.
  */
-export function useChatHistory(sessionId: string) {
+export function useChatHistory(sessionId?: string) {
   return useQuery<{ messages: any[] }>({
     queryKey: eventKeys.chat(sessionId),
-    queryFn: () => apiFetch<{ messages: any[] }>(`/chat/${sessionId}/history`),
+    queryFn: () => apiFetch<{ messages: any[] }>(`/chat/${sessionId || 'undefined'}/history`),
     enabled: !!sessionId,
   });
 }

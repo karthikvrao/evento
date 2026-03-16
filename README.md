@@ -63,10 +63,29 @@ cp apps/agent_service/app/.env.example apps/agent_service/app/.env
 Key vars:
 ```
 GOOGLE_GENAI_USE_VERTEXAI=FALSE   # TRUE for Vertex AI, FALSE for AI Studio
-GOOGLE_API_KEY=<your-key>         # Google AI Studio key (local dev)
+GOOGLE_API_KEY=<your-key>         # Google AI Studio key (local dev only)
 GOOGLE_CLOUD_PROJECT=<project-id>
 GOOGLE_CLOUD_LOCATION=us-central1
+GCS_BUCKET_NAME=<your-bucket>
+# GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json  # ADC via service account
 ```
+
+#### Vertex AI Session Service (optional, for persistent sessions)
+
+To use `VertexAiSessionService` instead of the default `InMemorySessionService`:
+
+1. **Create an Agent Engine instance** (one-time):
+   ```python
+   import vertexai
+   client = vertexai.Client(project="YOUR_PROJECT_ID", location="us-central1")
+   agent_engine = client.agent_engines.create()
+   print(agent_engine.api_resource.name.split("/")[-1])  # This is your AGENT_ENGINE_ID
+   ```
+2. **Set these env vars** in `apps/agent_service/app/.env`:
+   ```
+   RUNTIME_ENV=production
+   AGENT_ENGINE_ID=<id-from-step-1>
+   ```
 
 ### 3. Run Development Servers
 

@@ -1,3 +1,7 @@
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,6 +17,7 @@ if settings.runtime_env == "production":
     session_service = VertexAiSessionService(
         project=settings.google_cloud_project,
         location=settings.google_cloud_location,
+        agent_engine_id=settings.agent_engine_id,
     )
 else:
     session_service = InMemorySessionService()

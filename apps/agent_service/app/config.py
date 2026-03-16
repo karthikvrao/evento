@@ -15,7 +15,10 @@ class Settings(BaseSettings):
     firebase_project_id: str
     agent_app_name: str = "evento"
     runtime_env: str = "local"  # "local" | "production"
-    firebase_api_key: str = ""
+    # Vertex AI Agent Engine instance ID — required when RUNTIME_ENV=production
+    # to enable VertexAiSessionService for persistent session storage.
+    # Create one via: vertexai.Client().agent_engines.create()
+    agent_engine_id: str = ""
     google_application_credentials: str | None = None
     # Live API — reserved, not yet active
     live_api_enabled: bool = False

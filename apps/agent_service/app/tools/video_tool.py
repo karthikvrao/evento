@@ -39,20 +39,50 @@ async def generate_video_clip(
 
         # Start the video generation
         operation = client.models.generate_videos(
-            model="veo-3.1-fast-generate-preview",
+            model="veo-3.1-fast-generate-001",
             prompt=prompt,
-            config=types.GenerateVideoConfig(
+            config=types.GenerateVideosConfig(
                 aspect_ratio=VIDEO_ASPECT_RATIO,
-                person_generation="ALLOW_ADULT",
+                number_of_videos=1,
+                resolution=VIDEO_RESOLUTION,
+                person_generation="allow_adult",
+                enhance_prompt=True,
+                generate_audio=True,
                 # The trailing slash means the service will generate a filename
                 output_gcs_uri=f"gs://{settings.gcs_bucket_name}/videos/{event_id}/{session_id}/",
             ),
         )
 
-        # Poll until done
-        while not operation.done:
+        # Poll until done (with a safety timeout)
+        max_polls = 12  # 12 * 5s = 1 minute
+        poll_count = 0
+        
+        while not operation.done and poll_count < max_polls:
+            poll_count += 1
             await asyncio.sleep(VEO_POLL_INTERVAL_SECONDS)
-            operation = client.operations.get(operation)
+            try:
+                operation = client.operations.get(operation)
+                logger.info(f"Veo polling {poll_count}/{max_polls}: done={operation.done}")
+            except Exception as e:
+                logger.warning(f"Veo poll failed (will retry): {e}")
+                continue
+
+        if not operation.done:
+            logger.warning(f"Veo generation timed out after {poll_count} polls. Continuing in background.")
+            video_uri = f"gs://{settings.gcs_bucket_name}/videos/{event_id}/{session_id}/video_0.mp4"
+            return {
+                "status": "pending",
+                "data": gs_to_public_url(video_uri),
+                "metadata": {
+                    "note": (
+                        "The video generation is taking a bit longer than usual. "
+                        "It will continue processing in the background and should "
+                        "appear in your event media gallery within the next few minutes."
+                    ),
+                    "poll_count": poll_count
+                },
+                "media_assets": []
+            }
 
         if operation.error:
             raise Exception(f"Veo API error: {operation.error}")
