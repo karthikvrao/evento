@@ -139,7 +139,7 @@ export function CreateEventModal({ isOpen, onClose, onCreate, isCreating = false
                 </>
               ) : (
                 <>
-                  <span>Generate Event Space</span>
+                  <span>Create Event Space</span>
                   <Zap className="h-4 w-4 fill-current group-hover:scale-110 transition-transform duration-300" />
                 </>
               )}

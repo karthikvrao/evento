@@ -32,7 +32,7 @@ interface AiAssistantPanelProps {
   selectedContent?: any[];
   onRemoveSelected?: (id: string) => void;
   children?: React.ReactNode;
-  onSend?: (text: string) => void;
+  onSend?: (text: string, files?: File[]) => void;
   connected?: boolean;
 }
 
@@ -111,11 +111,12 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
   };
 
   const handleSubmit = () => {
-    if (input.trim() && onSend) {
-      onSend(input);
-      setInput('');
-      setAttachments([]);
-    }
+    if ((!input.trim() && attachments.length === 0) || !onSend) return;
+    // Extract the raw File objects from attachment state
+    const files = attachments.map(a => a.file).filter(Boolean) as File[];
+    onSend(input, files.length > 0 ? files : undefined);
+    setInput('');
+    setAttachments([]);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

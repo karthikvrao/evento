@@ -9,32 +9,34 @@ import { Label } from '../components/ui/label';
 import { FileText, Image, Play, Eye, EyeOff } from 'lucide-react';
 
 export default function SignUpPage() {
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  // TODO: enable email sign up
+  // const [fullName, setFullName] = useState('');
+  // const [email, setEmail] = useState('');
+  // const [password, setPassword] = useState('');
+  // const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const navigate = useNavigate();
 
-  const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      // Update display name
-      await updateProfile(userCredential.user, {
-        displayName: fullName
-      });
-      navigate('/events');
-    } catch (err: any) {
-      setError(err.message || 'Failed to create account');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // TODO: enable email sign up
+  // const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
+  //   e.preventDefault();
+  //   setLoading(true);
+  //   setError(null);
+  //   try {
+  //     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+  //     // Update display name
+  //     await updateProfile(userCredential.user, {
+  //       displayName: fullName
+  //     });
+  //     navigate('/events');
+  //   } catch (err: any) {
+  //     setError(err.message || 'Failed to create account');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   const handleGoogleSignUp = async () => {
     setLoading(true);
@@ -61,15 +63,18 @@ export default function SignUpPage() {
           <h1 className="text-4xl xl:text-5xl font-bold leading-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/80">
             Join the future of event storytelling
           </h1>
-          <p className="text-base text-muted-foreground mb-8 max-w-xl leading-relaxed">
+          {/* <p className="text-base text-muted-foreground mb-8 max-w-xl leading-relaxed">
             Create an account to start weaving text, images, audio, and video into cohesive event experiences with AI.
+          </p> */}
+          <p className="text-base text-muted-foreground mb-8 max-w-xl leading-relaxed">
+            Create an account to start weaving text and images into cohesive event experiences with AI.
           </p>
 
           <div className="grid grid-cols-3 gap-4">
             <FeatureTile icon={<FileText className="h-5 w-5" />} label="TEXT" color="blue" />
             <FeatureTile icon={<Image className="h-5 w-5" />} label="IMAGE" color="blue" />
             {/* <FeatureTile icon={<Mic className="h-5 w-5" />} label="AUDIO" color="indigo" /> */}
-            <FeatureTile icon={<Play className="h-5 w-5" />} label="VIDEO" color="sky" />
+            {/* <FeatureTile icon={<Play className="h-5 w-5" />} label="VIDEO" color="sky" /> */}
           </div>
         </div>
       </div>
@@ -103,6 +108,7 @@ export default function SignUpPage() {
                 Sign up with Google
               </Button>
 
+              {/* to be enabled later
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-border/40"></span>
@@ -177,6 +183,7 @@ export default function SignUpPage() {
                   {loading ? 'Creating Account...' : 'Create Account'}
                 </Button>
               </form>
+              */}
 
               <div className="text-center text-base pt-4">
                 <span className="text-muted-foreground">Already have an account? </span>

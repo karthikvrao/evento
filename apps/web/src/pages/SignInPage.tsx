@@ -4,14 +4,15 @@ import { signInWithEmailAndPassword, signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { Logo } from '../components/brand/Logo';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
+// import { Input } from '../components/ui/input';
+// import { Label } from '../components/ui/label';
 import { FileText, Image, Play, Eye, EyeOff } from 'lucide-react';
 
 export default function SignInPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  // TODO: enable email sign in
+  // const [email, setEmail] = useState('');
+  // const [password, setPassword] = useState('');
+  // const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -19,19 +20,20 @@ export default function SignInPage() {
   const [searchParams] = useSearchParams();
   const next = searchParams.get('next') || '/events';
 
-  const handleEmailSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      navigate(next);
-    } catch (err: any) {
-      setError(err.message || 'Failed to sign in');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // TODO: enable email sign in
+  // const handleEmailSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
+  //   e.preventDefault();
+  //   setLoading(true);
+  //   setError(null);
+  //   try {
+  //     await signInWithEmailAndPassword(auth, email, password);
+  //     navigate(next);
+  //   } catch (err: any) {
+  //     setError(err.message || 'Failed to sign in');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
@@ -67,7 +69,7 @@ export default function SignInPage() {
             <FeatureTile icon={<FileText className="h-5 w-5" />} label="TEXT" color="blue" />
             <FeatureTile icon={<Image className="h-5 w-5" />} label="IMAGE" color="blue" />
             {/* <FeatureTile icon={<Mic className="h-5 w-5" />} label="AUDIO" color="indigo" /> */}
-            <FeatureTile icon={<Play className="h-5 w-5" />} label="VIDEO" color="sky" />
+            {/* <FeatureTile icon={<Play className="h-5 w-5" />} label="VIDEO" color="sky" /> */}
           </div>
         </div>
       </div>
@@ -82,7 +84,7 @@ export default function SignInPage() {
           <div className="bg-card/40 backdrop-blur-2xl p-8 lg:p-10 rounded-3xl border border-border/50 shadow-2xl shadow-black/20">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold tracking-tight">Welcome back</h2>
-              <p className="text-muted-foreground mt-2">Enter your credentials to access your account</p>
+              <p className="text-muted-foreground mt-2">Sign in to access your account</p>
             </div>
 
             <div className="space-y-4">
@@ -101,6 +103,7 @@ export default function SignInPage() {
                 Sign in with Google
               </Button>
 
+              {/* to be enabled later
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-border/40"></span>
@@ -173,6 +176,7 @@ export default function SignInPage() {
                   {loading ? 'Signing in...' : 'Sign in to Account'}
                 </Button>
               </form>
+              */}
 
               <div className="text-center text-base pt-4">
                 <span className="text-muted-foreground">Don't have an account? </span>

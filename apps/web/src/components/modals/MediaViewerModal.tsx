@@ -89,7 +89,7 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
 
   return (
     <TooltipProvider delay={0}>
-      <div className="fixed inset-0 z-[100] flex flex-col bg-black/95 backdrop-blur-xl animate-in fade-in duration-300">
+      <div className="fixed inset-0 z-[100] flex flex-col bg-black/95 backdrop-blur-xl animate-in fade-in duration-300 overflow-hidden">
         {/* Top Bar */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-black/40">
           <div className="flex flex-col">
@@ -188,12 +188,12 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
         </div>
 
         {/* Center Content */}
-        <div className="flex-1 relative flex items-center justify-center p-4 group/viewer">
+        <div className="flex-1 relative flex items-center justify-center p-4 group/viewer min-h-0 overflow-hidden">
           {/* Previous Button */}
           <Button
             variant="ghost"
             size="icon"
-            className="absolute left-6 z-10 h-12 w-12 rounded-full bg-white/5 hover:bg-white/10 text-white backdrop-blur-md opacity-0 group-hover/viewer:opacity-100 transition-opacity active:scale-95"
+            className="absolute left-6 top-1/2 -translate-y-1/2 z-10 h-12 w-12 rounded-full bg-white/5 hover:bg-white/10 text-white backdrop-blur-md opacity-0 group-hover/viewer:opacity-100 transition-opacity active:scale-95"
             onClick={handlePrevious}
           >
             <ChevronLeft className="h-8 w-8" />
@@ -220,7 +220,7 @@ export const MediaViewerModal: React.FC<MediaViewerModalProps> = ({
           <Button
             variant="ghost"
             size="icon"
-            className="absolute right-6 z-10 h-12 w-12 rounded-full bg-white/5 hover:bg-white/10 text-white backdrop-blur-md opacity-0 group-hover/viewer:opacity-100 transition-opacity active:scale-95"
+            className="absolute right-6 top-1/2 -translate-y-1/2 z-10 h-12 w-12 rounded-full bg-white/5 hover:bg-white/10 text-white backdrop-blur-md opacity-0 group-hover/viewer:opacity-100 transition-opacity active:scale-95"
             onClick={handleNext}
           >
             <ChevronRight className="h-8 w-8" />

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { getAuth } from 'firebase/auth';
+import { Loader2 } from 'lucide-react';
 import { Navbar } from '../components/Navbar';
 import { CreateEventModal } from '../components/modals/CreateEventModal';
 import { FilterBar } from '../components/eventspace/FilterBar';
@@ -40,7 +41,8 @@ export default function EventSpacePage() {
     contentCards,
     isChatConnected,
     isAgentThinking,
-    handleSendMessage
+    handleSendMessage,
+    isLoading: isSessionLoading
   } = useEventSession(id || '');
 
   // 2. TanStack Query Hooks (static event info)
@@ -60,16 +62,40 @@ export default function EventSpacePage() {
     return () => unsubscribe();
   }, [navigate]);
 
-  // Handle chat submission
-  const handleChatSubmit = (text: string) => {
-    handleSendMessage(text);
+  // Handle chat submission (text + optional file attachments)
+  const handleChatSubmit = (text: string, files?: File[]) => {
+    handleSendMessage(text, files);
   };
 
   // Auto-scroll chat handled by AiAssistantPanel's useEffect
+  const filteredContent = contentCards.filter(item => {
+    if (activeFilter === 'all') return true;
+    if (activeFilter === 'favorites') return false; // Not implemented in DB yet
+    
+    const uiTypeMap: Record<string, string[]> = {
+      'poster': ['poster', 'social_post'],
+      'email': ['email'],
+      'video': ['video'],
+      'text': ['text']
+    };
+    
+    // activeFilter might be "posters", so slice(-1)
+    const baseFilter = activeFilter.endsWith('s') ? activeFilter.slice(0, -1) : activeFilter;
+    const allowedTypes = uiTypeMap[baseFilter] || [baseFilter];
+    
+    return allowedTypes.includes(item.content_category);
+  });
 
   // 4. Auto-scroll main content when new assets arrive
   const mainContentRef = useRef<HTMLDivElement>(null);
   const isMainScrolledToBottom = useRef(true);
+  const isInitialLoad = useRef(true);
+
+  // Reset scroll to bottom whenever we change events
+  useEffect(() => {
+    isMainScrolledToBottom.current = true;
+    isInitialLoad.current = true;
+  }, [id]);
 
   useEffect(() => {
     const container = mainContentRef.current;
@@ -85,7 +111,12 @@ export default function EventSpacePage() {
 
     const resizeObserver = new ResizeObserver(() => {
       if (isMainScrolledToBottom.current) {
-        container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+        if (isInitialLoad.current && container.scrollHeight > 0) {
+          container.scrollTop = container.scrollHeight;
+          isInitialLoad.current = false;
+        } else {
+          container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+        }
       }
     });
 
@@ -101,7 +132,7 @@ export default function EventSpacePage() {
       container.removeEventListener('scroll', handleScroll);
       resizeObserver.disconnect();
     };
-  }, []);
+  }, [contentCards.length, filteredContent.length, id, isSessionLoading]); // Re-trigger scroll when items, filters, events, or loading state changes
 
   const handleCreateEvent = async (eventData: { name: string; description?: string; type?: string }) => {
     try {
@@ -117,8 +148,6 @@ export default function EventSpacePage() {
     }
   };
 
-
-  // Format content cards for UI
   const mediaItems: MediaItem[] = contentCards
     .filter(item => item.asset_type === 'video' || item.asset_type === 'image')
     .map((item) => ({
@@ -160,23 +189,6 @@ export default function EventSpacePage() {
     setTimeout(() => setHighlightedId(null), 3000);
   };
 
-  const filteredContent = contentCards.filter(item => {
-    if (activeFilter === 'all') return true;
-    if (activeFilter === 'favorites') return false; // Not implemented in DB yet
-    
-    const uiTypeMap: Record<string, string[]> = {
-      'poster': ['poster', 'social_post'],
-      'email': ['email'],
-      'video': ['video'],
-      'text': ['text']
-    };
-    
-    // activeFilter might be "posters", so slice(-1)
-    const baseFilter = activeFilter.endsWith('s') ? activeFilter.slice(0, -1) : activeFilter;
-    const allowedTypes = uiTypeMap[baseFilter] || [baseFilter];
-    
-    return allowedTypes.includes(item.content_category);
-  });
 
   // Group content by timestamp
   const groupedContent = filteredContent.reduce<Record<string, any[]>>((acc, item) => {
@@ -275,16 +287,25 @@ export default function EventSpacePage() {
         />
 
         {/* Main Content Area */}
-        <main ref={mainContentRef} className="flex-1 overflow-y-auto bg-background flex flex-col relative custom-scrollbar">
+        <main className="flex-1 bg-background flex flex-col relative">
           {/* Secondary Filter Bar */}
           <FilterBar 
             activeFilter={activeFilter}
             onFilterChange={setActiveFilter}
           />
           
-          <div className="flex-1 overflow-y-auto p-4 md:p-12 custom-scrollbar">
-            <div className="max-w-[1400px] mx-auto">
-              {filteredContent.length > 0 ? (
+          <div ref={mainContentRef} className="flex-1 overflow-y-auto p-4 md:p-12 custom-scrollbar">
+            <div className="max-w-[1400px] mx-auto min-h-full flex flex-col">
+              {isSessionLoading ? (
+                <div className="flex-1 flex flex-col items-center justify-center animate-in fade-in zoom-in-95 duration-500">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full animate-pulse" />
+                    <Loader2 className="h-12 w-12 text-primary animate-spin relative z-10" />
+                  </div>
+                  <h3 className="mt-8 text-xl font-bold text-white tracking-tight">Preparing your space</h3>
+                  <p className="mt-2 text-muted-foreground text-sm">Gathering event assets and history...</p>
+                </div>
+              ) : filteredContent.length > 0 ? (
                 <div className="flex flex-col space-y-20">
                   {Object.entries(groupedContent)
                     .sort(([timeA], [timeB]) => timeA.localeCompare(timeB)) // Chronological
@@ -359,7 +380,7 @@ export default function EventSpacePage() {
             {/* Typing / thinking indicator — shown while agent generates images */}
             {isAgentThinking && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-accent/50 border border-border/20 max-w-[85%] mr-auto shadow-sm">
-                <span className="text-xs text-muted-foreground">Generating content</span>
+                <span className="text-xs text-muted-foreground">Thinking...</span>
                 <span className="flex gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
                   <span className="w-1.5 h-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />

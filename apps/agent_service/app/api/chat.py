@@ -246,14 +246,15 @@ async def chat_ws(websocket: WebSocket, event_id: str, user_id: str, session_id:
                 request_data = json.loads(raw_data)
                 user_msg = {
                     "text": request_data.get("text", ""),
-                    "image_url": request_data.get("image_url", None)
+                    # Support both single image_url (legacy) and image_urls (list)
+                    "image_urls": request_data.get("image_urls", [])
                 }
             except json.JSONDecodeError:
-                user_msg = {"text": raw_data, "image_url": None}
+                user_msg = {"text": raw_data, "image_urls": []}
             
-            if user_msg["text"].strip() or user_msg["image_url"]:
+            if user_msg["text"].strip() or user_msg["image_urls"]:
                 # pyre-ignore[16, 24]
-                logger.info(f"Queueing user message for session {session_id}: {user_msg['text'][:50]}...")
+                logger.info(f"Queueing user message for session {session_id}: {user_msg['text'][:50]}... ({len(user_msg['image_urls'])} image(s))")
                 await message_queue.put(user_msg)
             else:
                 logger.info(f"Ignoring empty message for session {session_id}")
@@ -267,13 +268,14 @@ async def chat_ws(websocket: WebSocket, event_id: str, user_id: str, session_id:
             if user_msg["text"].strip():
                 parts.append(types.Part.from_text(text=user_msg["text"]))
             
-            if user_msg["image_url"]:
+            # Process all uploaded images into multimodal Parts for the agent
+            for img_url in user_msg.get("image_urls", []):
                 try:
-                    # process the image synchronously in a worker thread so we don't block the async loop
-                    img_part = await asyncio.to_thread(process_image, user_msg["image_url"])
+                    img_part = await asyncio.to_thread(process_image, img_url)
                     parts.append(img_part)
+                    logger.info(f"Processed user image: {img_url}")
                 except Exception as e:
-                    logger.error(f"Failed to to_thread process_image: {e}")
+                    logger.error(f"Failed to process user image {img_url}: {e}")
             
             # Pass the user's message to the ADK runner
             logger.info(f"Running agent for user={user_id}, session={session_id}")

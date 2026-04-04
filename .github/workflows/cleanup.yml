@@ -1,0 +1,39 @@
+name: Shutdown/Cleanup Services
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "SHUTDOWN" to confirm deletion of services'
+        required: true
+        default: ''
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: us-central1
+
+jobs:
+  shutdown:
+    name: Shutdown Services
+    if: github.event.inputs.confirm == 'SHUTDOWN'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Delete Cloud Run Service (Agent)
+        run: |
+          gcloud run services delete evento-agent-service \
+            --project $PROJECT_ID \
+            --region $REGION \
+            --quiet || echo "Service not found or already deleted"
+
+      - name: Disable Firebase Hosting
+        run: |
+          npm install -g firebase-tools
+          firebase hosting:disable --project $PROJECT_ID --quiet || echo "Hosting already disabled or project not found"

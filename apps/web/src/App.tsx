@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { AuthProvider } from './contexts/AuthContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { LoadingSpinner } from './components/ui/LoadingSpinner'
 import { TooltipProvider } from './components/ui/tooltip'
@@ -13,6 +13,17 @@ const EventsListPage = lazy(() => import('./pages/EventsListPage'))
 const EventSpacePage = lazy(() => import('./pages/EventSpacePage'))
 
 const queryClient = new QueryClient()
+
+/**
+ * Auth-aware root redirect:
+ * - Logged in → /events
+ * - Not logged in → /signin (no spurious ?next= param)
+ */
+function RootRedirect() {
+  const { user, loading } = useAuth()
+  if (loading) return <LoadingSpinner fullScreen />
+  return <Navigate to={user ? '/events' : '/signin'} replace />
+}
 
 function App() {
   return (
@@ -45,7 +56,7 @@ function App() {
                 />
 
                 {/* Default Redirects */}
-                <Route path="/" element={<Navigate to="/events" replace />} />
+                <Route path="/" element={<RootRedirect />} />
               </Routes>
             </Suspense>
           </BrowserRouter>

@@ -45,7 +45,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       <aside 
         style={{ width: isCollapsed ? 64 : width }}
         className={cn(
-          "border-r border-border/40 bg-card/30 backdrop-blur-md flex flex-col relative",
+          "border-r border-border/40 bg-card/30 backdrop-blur-md flex flex-col relative z-40",
           !isResizing && "transition-[width] duration-300",
           isCollapsed ? "w-16" : ""
         )}

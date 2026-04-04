@@ -7,12 +7,20 @@ export interface WsAgentMessage {
   event_info?: any;                  // Used for state_update
 }
 
+export const ASSET_TYPES = {
+  IMAGE: 'image',
+  VIDEO: 'video',
+  DOCUMENT: 'document',
+} as const;
+
+export type AssetType = typeof ASSET_TYPES[keyof typeof ASSET_TYPES];
+
 export interface MediaRef {
   asset_id: string;                  // Firestore doc ID = ContentCard ID
   url: string;
   thumbnail_url?: string;
   mime_type: string;
-  asset_type: 'image' | 'video' | 'document';
+  asset_type: AssetType;
 }
 
 // Client → server (supports multiple attachments)
